@@ -515,7 +515,7 @@ export default function HandoffRadar() {
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <span style={{ fontSize:18 }}>📡</span>
-          <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2 }}>Delivery Readiness Analyser</span>
+          <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2 }}>Slalom HandoffIQ</span>
           <span style={{
             background:"rgba(255,255,255,0.18)", borderRadius:9999,
             padding:"2px 10px", fontSize:10, fontWeight:700, letterSpacing:1,

@@ -1,8 +1,8 @@
-# Delivery Readiness Analyser
+# Slalom HandoffIQ
 
 An AI-powered tool for Salesforce and IT implementation teams that analyses project handoff artifacts (user stories, solution designs, requirements docs) and tells the receiving team whether they are ready to start work.
 
-Built as a Slalom delivery accelerator.
+A Slalom delivery accelerator.
 
 ## Modes
 

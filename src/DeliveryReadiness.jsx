@@ -1,0 +1,1045 @@
+import { useState, useRef, useEffect } from "react";
+import mammoth from "mammoth";
+
+const WATERFALL_TYPES = [
+  { id:"ba-dev",        label:"BA → Developer",          desc:"Requirements to build-ready specs",   icon:"📋" },
+  { id:"arch-delivery", label:"Architect → Delivery",     desc:"Solution design to implementation",  icon:"🏗️" },
+  { id:"workstream",    label:"Workstream → Workstream",  desc:"Cross-team handoff within program",  icon:"🔄" },
+  { id:"client-impl",   label:"Client → Impl. Team",      desc:"Discovery outputs to delivery team", icon:"🤝" },
+];
+
+const AGILE_TYPES = [
+  { id:"ba-dev",         label:"BA → Developer",              desc:"Story ready for sprint commitment",    icon:"📋",
+    dorFocus:"Acceptance criteria completeness, data model clarity, edge cases defined, UI/UX described",
+    extra:"Check each story has unambiguous ACs, no hidden dependencies, and is independently deliverable within a sprint." },
+  { id:"dev-qa",         label:"Developer → QA",              desc:"Build complete, ready for testing",    icon:"🧪",
+    dorFocus:"Test coverage notes, build deployed to sandbox, known defects documented, test data available, edge cases flagged",
+    extra:"Check the developer has documented what was built, how to test it, deviations from the story, and test data setup. ACs should map to testable scenarios." },
+  { id:"sf-integration", label:"Salesforce → Integration",    desc:"SF build ready for integration",       icon:"🔗",
+    dorFocus:"API endpoint or platform event defined, payload structure documented, error handling specified, sandbox accessible, field mappings complete",
+    extra:"Check API contracts, named credentials, connected app setup, and field-level mappings are documented. Integration error scenarios and retry logic should be specified." },
+  { id:"integration-sf", label:"Integration → Salesforce",    desc:"Integration spec ready for SF build",  icon:"⚡",
+    dorFocus:"Inbound payload schema defined, Salesforce object/field targets identified, duplicate/upsert logic specified, volume and frequency documented",
+    extra:"Check the integration team has provided the full inbound schema, identified which SF objects are affected, and documented how conflicts or duplicates should be handled." },
+  { id:"dev-devops",     label:"Developer → DevOps / Release",desc:"Ready for deployment pipeline",        icon:"🚀",
+    dorFocus:"Deployment components listed, sandbox validated, rollback plan exists, dependent metadata included, release notes written",
+    extra:"Check a change set or manifest is prepared, all dependent components included, post-deployment steps documented, and the release tested in a staging environment." },
+  { id:"sf-data",        label:"Salesforce → Data / Analytics",desc:"Data model ready for reporting",      icon:"📊",
+    dorFocus:"New objects and fields documented, field types and picklist values confirmed, reporting requirements specified, data access/sharing model clear",
+    extra:"Check new schema changes are documented, calculated fields are explained, and the analytics team has record access and sharing model context." },
+];
+
+/* ── SLDS 2 / Cosmos palette ── */
+const C = {
+  // Surfaces
+  pageBg:        "#f3f2f2",     // Cosmos warm-grey page
+  surface:       "#ffffff",     // card/panel
+  surfaceAlt:    "#fafaf9",     // subtle alt (inputs, code blocks)
+  border:        "#e5e5e5",     // subtle divider
+  borderStrong:  "#c9c7c5",     // standard border / input border
+
+  // Text
+  text:          "#181818",     // primary
+  textMuted:     "#706e6b",     // secondary / labels
+  textSubtle:    "#a8a5a0",     // tertiary / disabled
+
+  // Brand (Salesforce blue)
+  brand:         "#0176d3",
+  brandDark:     "#014486",
+  brandBg:       "#eaf5fe",
+
+  // Einstein (AI)
+  einstein:      "#5a1ba9",
+  einsteinBg:    "#e9d9ff",
+
+  // Semantic
+  success:       "#2e844a",
+  successBg:     "#cdefc4",
+  warning:       "#7e4800",
+  warningBg:     "#fef0e1",
+  error:         "#ba0517",
+  errorBg:       "#fddde3",
+
+  // Mode accents — Agile=brand blue, Gate=warning amber
+  agile:         "#0176d3",
+  agileBg:       "#eaf5fe",
+  gate:          "#7e4800",
+  gateBg:        "#fef0e1",
+
+  // Shadows
+  shadow1:       "0 2px 4px 0 rgba(0,0,0,0.08)",
+  shadow2:       "0 4px 8px 0 rgba(0,0,0,0.12)",
+};
+
+const FONT = "'Salesforce Sans','Helvetica Neue',Arial,sans-serif";
+
+const QUALITY_DIMS = [
+  { key:"clarity",        label:"Clarity",               icon:"🔍" },
+  { key:"testability",    label:"Testability",           icon:"✅" },
+  { key:"businessValue",  label:"Business Value",        icon:"💼" },
+  { key:"dependencyRisk", label:"Dependency Risk",       icon:"⚡" },
+  { key:"dataImpact",     label:"Data / Integration",    icon:"🔗" },
+  { key:"sfFeasibility",  label:"Salesforce Feasibility",icon:"☁️" },
+];
+
+const DOR_CRITERIA = [
+  { key:"userStoryFormat",    label:"User story format",         desc:"As a / I want / So that" },
+  { key:"acceptanceCriteria", label:"Acceptance criteria",       desc:"Given/When/Then or equivalent" },
+  { key:"sized",              label:"Sized / pointed",           desc:"Team can estimate effort" },
+  { key:"dependenciesClear",  label:"Dependencies identified",   desc:"No hidden blockers" },
+  { key:"nfrConsidered",      label:"NFRs considered",           desc:"Security, scale, performance" },
+  { key:"uiUxReady",          label:"UI/UX defined",             desc:"Mockups or description present" },
+  { key:"dataModelClear",     label:"Data model clear",          desc:"Objects, fields, relationships" },
+  { key:"testable",           label:"Independently testable",    desc:"Can be verified in isolation" },
+];
+
+function loadPdfJs() {
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) return resolve(window.pdfjsLib);
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      resolve(window.pdfjsLib);
+    };
+    s.onerror = () => reject(new Error("PDF.js failed to load"));
+    document.head.appendChild(s);
+  });
+}
+
+/* ── SLDS-style UPPERCASE label ── */
+const sldsLabel = {
+  fontSize:11, fontWeight:700, color:C.textMuted,
+  textTransform:"uppercase", letterSpacing:0.5,
+  display:"block",
+};
+
+/* ── Einstein "AI generated" pill ── */
+function EinsteinPill({ text="Einstein generated", style={} }) {
+  return (
+    <span style={{
+      display:"inline-flex", alignItems:"center", gap:5,
+      background:C.einsteinBg, color:C.einstein,
+      padding:"3px 10px", borderRadius:9999,
+      fontSize:11, fontWeight:700, letterSpacing:0.2,
+      ...style,
+    }}>
+      <span>✨</span>{text}
+    </span>
+  );
+}
+
+/* ── Mode toggle (SLDS button-group / segmented control) ── */
+function ModeToggle({ mode, onChange }) {
+  return (
+    <div style={{
+      display:"flex", background:C.surfaceAlt,
+      border:`1px solid ${C.border}`, borderRadius:9999,
+      padding:4, gap:4,
+    }}>
+      {[
+        { id:"waterfall", label:"🏗️  Gate / Handoff",  sub:"Stage-gate · Document review", color:C.gate,  bg:C.gateBg },
+        { id:"agile",     label:"🔄  Sprint Ready",     sub:"Story-by-story · DoR check",   color:C.agile, bg:C.agileBg },
+      ].map(m => {
+        const active = mode===m.id;
+        return (
+          <div key={m.id} onClick={() => onChange(m.id)} style={{
+            flex:1, padding:"10px 16px", borderRadius:9999, cursor:"pointer", textAlign:"center",
+            background: active ? m.bg : "transparent",
+            border: active ? `1px solid ${m.color}` : "1px solid transparent",
+            transition:"all 0.15s",
+          }}>
+            <div style={{ fontSize:13, fontWeight:600, color: active ? m.color : C.text, marginBottom:2 }}>{m.label}</div>
+            <div style={{ fontSize:11, color:C.textMuted }}>{m.sub}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Score ring ── */
+function ScoreRing({ score, color, label, size=160 }) {
+  const r = (size/2)-10, circ = 2*Math.PI*r;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10, flexShrink:0 }}>
+      <div style={{ position:"relative", width:size, height:size }}>
+        <svg width={size} height={size} style={{ transform:"rotate(-90deg)" }}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.border} strokeWidth="10"/>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="10"
+            strokeDasharray={circ} strokeDashoffset={circ*(1-score/100)} strokeLinecap="round"
+            style={{ transition:"stroke-dashoffset 1.4s cubic-bezier(0.4,0,0.2,1)" }}/>
+        </svg>
+        <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3 }}>
+          <span style={{ fontSize:size*0.24, fontWeight:700, color, lineHeight:1 }}>{score}</span>
+          <span style={{ fontSize:size*0.07, color:C.textMuted, letterSpacing:1.5, textTransform:"uppercase", fontWeight:700 }}>out of 100</span>
+        </div>
+      </div>
+      <span style={{ fontSize:11, color, letterSpacing:1.2, fontWeight:700, textTransform:"uppercase" }}>{label}</span>
+    </div>
+  );
+}
+
+/* ── Sprint verdict badge (SLDS full-pill) ── */
+function Verdict({ v }) {
+  const map = {
+    READY:  { color:C.success, bg:C.successBg, icon:"✓" },
+    REFINE: { color:C.warning, bg:C.warningBg, icon:"!" },
+    DEFER:  { color:C.error,   bg:C.errorBg,   icon:"✕" },
+  };
+  const s = map[v] || map.REFINE;
+  return (
+    <span style={{
+      fontSize:11, color:s.color, background:s.bg,
+      borderRadius:9999, padding:"3px 10px",
+      fontWeight:700, letterSpacing:0.5,
+      whiteSpace:"nowrap",
+    }}>
+      {s.icon} {v}
+    </span>
+  );
+}
+
+/* ── DoR check row ── */
+function DorRow({ criterion, data }) {
+  const pass = data?.pass;
+  return (
+    <div style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"12px 0", borderBottom:`1px solid ${C.border}` }}>
+      <span style={{
+        display:"inline-flex", alignItems:"center", justifyContent:"center",
+        width:20, height:20, borderRadius:9999, marginTop:1, flexShrink:0,
+        background: pass ? C.successBg : C.errorBg,
+        color: pass ? C.success : C.error,
+        fontSize:12, fontWeight:700,
+      }}>{pass ? "✓" : "✕"}</span>
+      <div style={{ flex:1 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3, flexWrap:"wrap" }}>
+          <span style={{ fontSize:13, fontWeight:600, color:C.text }}>{criterion.label}</span>
+          <span style={{ fontSize:11, color:C.textMuted }}>— {criterion.desc}</span>
+        </div>
+        {data?.note && <p style={{ fontSize:12, color: pass ? C.textMuted : C.warning, lineHeight:1.6 }}>{data.note}</p>}
+        {!pass && data?.fix && (
+          <div style={{
+            marginTop:8, background:C.einsteinBg+"55",
+            border:`1px solid ${C.einsteinBg}`, borderLeft:`3px solid ${C.einstein}`,
+            borderRadius:8, padding:"10px 12px",
+          }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+              <EinsteinPill text="Suggested fix"/>
+            </div>
+            <p style={{ fontSize:12, color:C.text, lineHeight:1.6 }}>{data.fix}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Section divider ── */
+function Divider({ step, label, color=C.brand }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:14, margin:"28px 0 18px" }}>
+      <div style={{
+        width:28, height:28, borderRadius:9999,
+        background:color, color:"#fff",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        fontSize:13, fontWeight:700, flexShrink:0,
+      }}>{step}</div>
+      <span style={{ fontSize:12, color:C.text, letterSpacing:1.2, fontWeight:700, textTransform:"uppercase" }}>{label}</span>
+      <div style={{ flex:1, height:1, background:C.border }}/>
+    </div>
+  );
+}
+
+/* ── Example callout (Einstein-flavoured) ── */
+function Example({ label, text, accent }) {
+  if (!text) return null;
+  const useEinstein = accent === C.einstein || !accent;
+  const c = accent || C.einstein;
+  return (
+    <div style={{
+      marginTop:10,
+      background: useEinstein ? C.einsteinBg+"55" : "#fff",
+      border:`1px solid ${useEinstein ? C.einsteinBg : C.border}`,
+      borderLeft:`3px solid ${c}`,
+      borderRadius:8, padding:"10px 12px",
+    }}>
+      <div style={{ marginBottom:5 }}>
+        {useEinstein
+          ? <EinsteinPill text={label}/>
+          : <span style={{ fontSize:11, color:c, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase" }}>{label}</span>}
+      </div>
+      <p style={{ fontSize:12, color:C.text, lineHeight:1.65 }}>{text}</p>
+    </div>
+  );
+}
+
+/* ── Package row ── */
+function PackageRow({ icon, item, detail, tag, tagColor, tagBg, children }) {
+  return (
+    <div style={{ padding:"14px 0", borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+        <span style={{ fontSize:16, marginTop:1 }}>{icon}</span>
+        <div style={{ flex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5, flexWrap:"wrap" }}>
+            <span style={{ fontSize:13, fontWeight:600, color:C.text }}>{item}</span>
+            {tag && <span style={{
+              fontSize:11, color:tagColor, background:tagBg,
+              borderRadius:9999, padding:"2px 10px",
+              fontWeight:700, letterSpacing:0.5,
+            }}>{tag}</span>}
+          </div>
+          <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.6 }}>{detail}</p>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Dim bar ── */
+function DimBar({ dim, data }) {
+  const score = data?.score ?? 0;
+  const color = score>=7 ? C.success : score>=5 ? C.warning : C.error;
+  return (
+    <div style={{ marginBottom:22 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+        <span style={{ fontSize:13, color:C.text, fontWeight:600 }}>{dim.icon} {dim.label}</span>
+        <span style={{ fontSize:13, fontWeight:700, color }}>{score}/10</span>
+      </div>
+      <div style={{ height:8, background:C.border, borderRadius:9999, overflow:"hidden", marginBottom:8 }}>
+        <div style={{
+          height:"100%", width:`${score*10}%`, background:color,
+          borderRadius:9999, transition:"width 1.1s cubic-bezier(0.4,0,0.2,1)",
+        }}/>
+      </div>
+      {data?.finding    && <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.6 }}>{data.finding}</p>}
+      {data?.suggestion && <p style={{ fontSize:12, color:C.warning, marginTop:4 }}>→ {data.suggestion}</p>}
+      <Example label="Einstein example" text={data?.example} accent={C.einstein}/>
+    </div>
+  );
+}
+
+/* ── Spinner (Einstein-themed) ── */
+function Spinner({ mode }) {
+  const lines = mode==="agile"
+    ? ["Parsing stories…","Checking Definition of Ready…","Generating sprint recommendations…"]
+    : ["Package check…","Quality gate…","Improvement plan…"];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => { const t=setInterval(()=>setIdx(i=>(i+1)%lines.length),1800); return ()=>clearInterval(t); },[]);
+  return (
+    <div style={{ textAlign:"center", padding:"36px 0" }}>
+      <div style={{ position:"relative", width:80, height:80, margin:"0 auto 18px" }}>
+        {[0,1,2].map(i=>(
+          <div key={i} style={{
+            position:"absolute", inset:0,
+            border:`2px solid ${C.einstein}`, borderRadius:"50%",
+            animation:`ping 2s ease-out ${i*0.65}s infinite`,
+          }}/>
+        ))}
+        <div style={{ position:"absolute", inset:"34%", background:C.einstein, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14 }}>✨</div>
+      </div>
+      <p style={{ fontSize:13, color:C.einstein, fontWeight:600, marginBottom:4 }}>{lines[idx]}</p>
+      <p style={{ fontSize:11, color:C.textMuted, letterSpacing:0.5 }}>Powered by Einstein</p>
+    </div>
+  );
+}
+
+/* ══ PROMPTS ══ */
+const WATERFALL_PROMPT = `You are a delivery accelerator for IT and Salesforce implementation projects. Analyse the provided handoff artifacts and return ONLY a single valid JSON object — no markdown, no preamble, no trailing text.
+
+{"deliveryScore":<0-100, 40% package + 60% quality>,"summary":"<3 sentences: verdict, strength, risk>","package":{"present":[{"item":"<name>","detail":"<15 words>"}],"incomplete":[{"item":"<name>","detail":"<15 words>","suggestion":"<15 words>","example":"<35 words showing completed version>"}],"missing":[{"item":"<name>","detail":"<15 words>","impact":"<12 words>","example":"<35 words showing what should exist>"}]},"qualityDimensions":{"clarity":{"score":<1-10>,"finding":"<15 words>","suggestion":"<15 words>","example":"<35 words>"},"testability":{"score":<1-10>,"finding":"<15 words>","suggestion":"<15 words>","example":"<35 words of sample Given/When/Then>"},"businessValue":{"score":<1-10>,"finding":"<15 words>","suggestion":"<15 words>","example":"<35 words>"},"dependencyRisk":{"score":<1-10>,"finding":"<15 words>","suggestion":"<15 words>","example":"<35 words>"},"dataImpact":{"score":<1-10>,"finding":"<15 words>","suggestion":"<15 words>","example":"<35 words>"},"sfFeasibility":{"score":<1-10>,"finding":"<15 words>","suggestion":"<15 words>","example":"<35 words>"}},"improvementPlan":{"improvedStories":[{"original":"<exact quote from artifact, 40 words max>","improved":"<full rewrite with role/action/outcome + AC>","reason":"<10 words>"}],"missingNFRs":[{"area":"<Security|Scale|Reporting|Migration|Compliance|Performance>","detail":"<15 words>","impact":"<12 words>","recommendation":"<full usable NFR statement, 45 words>"}],"salesforceCapabilities":[{"requirement":"<10 words>","standardCapability":"<15 words>","customizationNeeded":"<15 words>"}]}}
+
+Rules: package.present max 3; incomplete+missing max 3 each with examples; improvedStories max 2 full rewrites; missingNFRs max 3 with usable statements; sfCapabilities max 3. Be specific to the artifact.`;
+
+const AGILE_PROMPT = `You are a sprint readiness coach for agile Salesforce implementation teams. Analyse each user story in the provided artifacts against a Definition of Ready (DoR) and return ONLY a single valid JSON object — no markdown, no preamble, no trailing text.
+
+{"sprintReadinessScore":<0-100, average across all stories>,"summary":"<2 sentences: overall sprint health and biggest risk>","stories":[{"id":"<Story N>","title":"<story title or first 8 words>","verdict":"<READY|REFINE|DEFER>","score":<0-100>,"dorChecks":{"userStoryFormat":{"pass":<true|false>,"note":"<10 words>","fix":"<sample corrected story format if failing, 30 words>"},"acceptanceCriteria":{"pass":<true|false>,"note":"<10 words>","fix":"<sample Given/When/Then AC if failing, 40 words>"},"sized":{"pass":<true|false>,"note":"<10 words>","fix":"<suggestion if failing, 20 words>"},"dependenciesClear":{"pass":<true|false>,"note":"<10 words>","fix":"<sample dependency note if failing, 25 words>"},"nfrConsidered":{"pass":<true|false>,"note":"<10 words>","fix":"<sample NFR requirement if failing, 30 words>"},"uiUxReady":{"pass":<true|false>,"note":"<10 words>","fix":"<sample UI description if failing, 25 words>"},"dataModelClear":{"pass":<true|false>,"note":"<10 words>","fix":"<sample data model note if failing, 25 words>"},"testable":{"pass":<true|false>,"note":"<10 words>","fix":"<sample testability note if failing, 20 words>"}},"topFix":"<single most important fix, 20 words>","improvedStory":"<full rewritten story with improved title, description, and 2 sample ACs — concrete and specific>"}],"sprintRecommendation":{"ready":["<story title>"],"refine":["<story title>"],"defer":["<story title>"],"advice":"<2 sentences on sprint planning recommendation>"}}
+
+Rules: analyse every story found; verdict READY=6+ DoR checks pass; DEFER if core story format or AC missing; improvedStory must be fully written not truncated; be specific to the actual content.`;
+
+/* ══ MAIN APP ══ */
+export default function HandoffRadar() {
+  const [mode, setMode]               = useState("agile");
+  const [step, setStep]               = useState("setup");
+  const [handoffType, setHandoffType] = useState("ba-dev");
+  const [files, setFiles]             = useState([]);
+  const [pasteText, setPasteText]     = useState("");
+  const [showPaste, setShowPaste]     = useState(false);
+  const [results, setResults]         = useState(null);
+  const [analyzing, setAnalyzing]     = useState(false);
+  const [error, setError]             = useState("");
+  const [dragOver, setDragOver]       = useState(false);
+  const [expandedStory, setExpandedStory] = useState(null);
+  const fileRef = useRef();
+
+  useEffect(() => { loadPdfJs().catch(()=>{}); }, []);
+
+  const readFile = async (file) => {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (["txt","md"].includes(ext)) return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsText(file); });
+    if (ext==="docx") { const buf=await file.arrayBuffer(); return (await mammoth.extractRawText({arrayBuffer:buf})).value; }
+    if (ext==="pdf") {
+      let lib; try { lib=await loadPdfJs(); } catch { throw new Error("PDF reader unavailable — use Paste text."); }
+      const pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise;
+      let t=""; for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i);const c=await p.getTextContent();t+=c.items.map(x=>x.str).join(" ")+"\n";}
+      if(!t.trim()) throw new Error("No text extracted — use Paste text.");
+      return t;
+    }
+    throw new Error(`Unsupported: .${ext}`);
+  };
+
+  const handleFiles = async (fileList) => {
+    setError("");
+    for (const file of Array.from(fileList)) {
+      try { const c=await readFile(file); setFiles(prev=>prev.find(f=>f.name===file.name)?prev:[...prev,{name:file.name,content:c,size:file.size}]); }
+      catch(e) { setError(e.message); }
+    }
+  };
+
+  const addPaste = () => {
+    if (!pasteText.trim()) return;
+    setFiles(prev=>[...prev,{name:`Pasted content ${prev.length+1}`,content:pasteText.trim(),size:pasteText.length}]);
+    setPasteText(""); setShowPaste(false);
+  };
+
+  const safeParseJson = (text) => {
+    let s = text.replace(/```json|```/g,"").trim();
+    try { return JSON.parse(s); } catch(_) {}
+    try {
+      s = s.replace(/,(\s*[\]}])/g,"$1");
+      s = s.replace(/,\s*"[^"]*"\s*:\s*$/,"");
+      if((s.match(/(?<!\\)"/g)||[]).length%2!==0) s+='"';
+      const oa=(s.match(/\[/g)||[]).length-(s.match(/\]/g)||[]).length;
+      const oo=(s.match(/\{/g)||[]).length-(s.match(/\}/g)||[]).length;
+      s+="]".repeat(Math.max(0,oa))+"}".repeat(Math.max(0,oo));
+      return JSON.parse(s);
+    } catch { throw new Error("Response too large to parse — try a shorter document."); }
+  };
+
+  const analyze = async () => {
+    if (!files.length) { setError("Upload at least one artifact first."); return; }
+    setAnalyzing(true); setError(""); setExpandedStory(null);
+    const combined = files.map(f=>`=== ${f.name} ===\n${f.content}`).join("\n\n");
+    const types = mode==="agile" ? AGILE_TYPES : WATERFALL_TYPES;
+    const activeType = types.find(t=>t.id===handoffType);
+    const typeLabel = activeType?.label||handoffType;
+    const agileContext = mode==="agile" && activeType
+      ? `\n\nHandoff-specific DoR focus: ${activeType.dorFocus}\nAdditional context: ${activeType.extra}`
+      : "";
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514", max_tokens:8000,
+          system: mode==="agile" ? AGILE_PROMPT : WATERFALL_PROMPT,
+          messages:[{role:"user",content:`Handoff type: ${typeLabel}${agileContext}\n\nArtifacts:\n${combined}`}],
+        }),
+      });
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      setResults(safeParseJson(data.content.map(c=>c.text||"").join("")));
+      setStep("results");
+    } catch(e) { setError("Analysis failed: "+e.message); }
+    finally { setAnalyzing(false); }
+  };
+
+  const reset = () => { setStep("setup"); setResults(null); setFiles([]); setError(""); setPasteText(""); setShowPaste(false); };
+  const stepIdx = ["setup","upload","results"].indexOf(step);
+
+  const accentColor   = mode==="agile" ? C.agile   : C.gate;
+  const accentBg      = mode==="agile" ? C.agileBg : C.gateBg;
+  const score         = mode==="agile" ? (results?.sprintReadinessScore??0) : (results?.deliveryScore??0);
+  const scoreColor    = score>=75 ? C.success : score>=50 ? C.warning : C.error;
+  const scoreLabel    = mode==="agile"
+    ? (score>=75?"Sprint ready":score>=50?"Needs refining":"Not sprint ready")
+    : (score>=75?"Delivery ready":score>=50?"Needs work":"Not ready");
+
+  /* ── SLDS-style reusable styles ── */
+  const card = {
+    background:C.surface,
+    border:`1px solid ${C.border}`,
+    borderRadius:8,                          // Cosmos card 8px
+    boxShadow:C.shadow1,
+    padding:"20px 22px",
+  };
+
+  // Primary button — Cosmos pill (16px) per SLDS 2
+  const btn = {
+    background:C.brand, color:"#fff", border:"none",
+    borderRadius:16, padding:"9px 22px",
+    fontSize:13, fontWeight:600, cursor:"pointer",
+    fontFamily:"inherit",
+    boxShadow:"0 1px 2px 0 rgba(0,0,0,0.08)",
+  };
+
+  // Neutral button — Cosmos pill with border
+  const btnSec = {
+    background:C.surface, color:C.brand,
+    border:`1px solid ${C.borderStrong}`,
+    borderRadius:16, padding:"9px 22px",
+    fontSize:13, fontWeight:600, cursor:"pointer",
+    fontFamily:"inherit",
+  };
+
+  // Input — SLDS keeps 4px radius for form fields
+  const inp = {
+    width:"100%",
+    background:C.surface,
+    border:`1px solid ${C.borderStrong}`,
+    borderRadius:4,
+    padding:"8px 12px",
+    color:C.text, fontSize:13,
+    fontFamily:"inherit", boxSizing:"border-box",
+  };
+
+  return (
+    <div style={{ background:C.pageBg, minHeight:"100vh", color:C.text, fontFamily:FONT }}>
+      <style>{`
+        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .fu{animation:fadeUp 0.3s ease forwards}
+        @keyframes ping{0%{transform:scale(0.3);opacity:0.8}100%{transform:scale(2.4);opacity:0}}
+        input:focus, textarea:focus { outline:none; border-color:${C.brand} !important; box-shadow:0 0 0 3px ${C.brand}33; }
+        button:hover:not(:disabled){ filter:brightness(0.96); }
+      `}</style>
+
+      {/* ── SLDS App Bar ── */}
+      <div style={{
+        background:C.brand,
+        height:48,
+        padding:"0 28px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        color:"#fff",
+        position:"sticky", top:0, zIndex:11,
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <span style={{ fontSize:18 }}>📡</span>
+          <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2 }}>Delivery Readiness Analyser</span>
+          <span style={{
+            background:"rgba(255,255,255,0.18)", borderRadius:9999,
+            padding:"2px 10px", fontSize:10, fontWeight:700, letterSpacing:1,
+            textTransform:"uppercase",
+          }}>
+            {mode==="agile" ? "Agile mode" : "Gate mode"}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Object header (sub-bar) ── */}
+      <div style={{
+        background:C.surface,
+        borderBottom:`1px solid ${C.border}`,
+        padding:"14px 28px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+      }}>
+        <div>
+          <div style={{ ...sldsLabel, marginBottom:3 }}>Slalom delivery accelerator</div>
+          <div style={{ fontSize:18, fontWeight:700, color:C.text }}>
+            {mode==="agile"
+              ? "Sprint readiness · Story-by-story DoR check"
+              : "Stage-gate readiness · Package & quality review"}
+          </div>
+        </div>
+        {results && <button onClick={reset} style={btnSec}>↺  New analysis</button>}
+      </div>
+
+      <div style={{ maxWidth:780, margin:"0 auto", padding:"28px 24px" }}>
+
+        {/* ── Step indicator (SLDS path-style) ── */}
+        <div style={{ display:"flex", marginBottom:32, gap:6 }}>
+          {["Configure","Upload","Results"].map((s,i)=>{
+            const done    = i<stepIdx;
+            const current = i===stepIdx;
+            const bg      = done ? C.success : current ? C.brand : C.surface;
+            const fg      = done || current ? "#fff" : C.textMuted;
+            const border  = done ? C.success : current ? C.brand : C.borderStrong;
+            return (
+              <div key={s} style={{
+                flex:1, padding:"10px 14px",
+                background:bg, color:fg,
+                border:`1px solid ${border}`,
+                borderRadius:9999,
+                fontSize:12, fontWeight:600,
+                textAlign:"center",
+                transition:"all 0.3s",
+                letterSpacing:0.3,
+              }}>
+                {done ? `✓  ${s}` : `${i+1}.  ${s}`}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ══ SETUP ══ */}
+        {step==="setup" && (
+          <div className="fu">
+
+            {/* Mode toggle */}
+            <div style={{ ...card, marginBottom:20 }}>
+              <label style={{ ...sldsLabel, marginBottom:12 }}>Analysis mode</label>
+              <ModeToggle mode={mode} onChange={m=>{setMode(m);setResults(null);setHandoffType("ba-dev");}}/>
+              <div style={{
+                fontSize:12, color:C.text, marginTop:14, lineHeight:1.65,
+                padding:"12px 14px", background:accentBg, borderRadius:8,
+                borderLeft:`3px solid ${accentColor}`,
+              }}>
+                {mode==="agile"
+                  ? "Agile mode analyses each user story individually against a Definition of Ready. Output is a per-story READY / REFINE / DEFER verdict with specific fixes — ideal before sprint planning."
+                  : "Gate mode evaluates the full handoff package for completeness and quality across 6 dimensions. Produces an improvement plan with NFR recommendations and Salesforce capability mapping — ideal for PI Planning or phase handoffs."}
+              </div>
+            </div>
+
+            {/* Handoff type */}
+            <div style={{ ...card, marginBottom:16 }}>
+              <label style={{ ...sldsLabel, marginBottom:14 }}>Handoff type</label>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                {(mode==="agile" ? AGILE_TYPES : WATERFALL_TYPES).map(t=>{
+                  const active = handoffType===t.id;
+                  return (
+                    <div key={t.id} onClick={()=>setHandoffType(t.id)} style={{
+                      padding:"12px 14px", borderRadius:8, cursor:"pointer",
+                      border: active ? `2px solid ${accentColor}` : `1px solid ${C.border}`,
+                      background: active ? accentBg : C.surface,
+                      transition:"all 0.15s",
+                    }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                        <span style={{ fontSize:16 }}>{t.icon}</span>
+                        <span style={{ fontSize:13, fontWeight:600, color:active?accentColor:C.text }}>{t.label}</span>
+                      </div>
+                      <p style={{ fontSize:11, color:C.textMuted, marginLeft:24 }}>{t.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              {mode==="agile" && AGILE_TYPES.find(t=>t.id===handoffType)?.dorFocus && (
+                <div style={{
+                  marginTop:12, padding:"11px 14px",
+                  background:C.einsteinBg+"66",
+                  border:`1px solid ${C.einsteinBg}`,
+                  borderLeft:`3px solid ${C.einstein}`,
+                  borderRadius:8,
+                }}>
+                  <div style={{ marginBottom:5 }}>
+                    <EinsteinPill text="DoR focus for this handoff"/>
+                  </div>
+                  <p style={{ fontSize:12, color:C.text, lineHeight:1.6 }}>{AGILE_TYPES.find(t=>t.id===handoffType).dorFocus}</p>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:24 }}>
+              <button style={btn} onClick={()=>setStep("upload")}>Continue →</button>
+            </div>
+          </div>
+        )}
+
+        {/* ══ UPLOAD ══ */}
+        {step==="upload" && (
+          <div className="fu">
+            <p style={{ fontSize:13, color:C.textMuted, marginBottom:22, lineHeight:1.6 }}>
+              {mode==="agile"
+                ? "Upload your user stories document. Each story will be analysed individually."
+                : "Upload your handoff artifacts. PDF, DOCX, TXT supported."}
+            </p>
+            <div onClick={()=>fileRef.current?.click()}
+              onDragOver={e=>{e.preventDefault();setDragOver(true);}} onDragLeave={()=>setDragOver(false)}
+              onDrop={e=>{e.preventDefault();setDragOver(false);handleFiles(e.dataTransfer.files);}}
+              style={{
+                ...card, textAlign:"center", padding:"40px 20px", cursor:"pointer",
+                background: dragOver ? C.brandBg : C.surface,
+                border: dragOver ? `2px dashed ${C.brand}` : `1px dashed ${C.borderStrong}`,
+                transition:"all 0.15s", marginBottom:10,
+              }}>
+              <div style={{ fontSize:32, marginBottom:10 }}>📂</div>
+              <p style={{ fontSize:14, color:C.text }}>
+                Drop files here or <span style={{ color:C.brand, fontWeight:600 }}>browse</span>
+              </p>
+              <p style={{ fontSize:12, color:C.textMuted, marginTop:5 }}>PDF · DOCX · TXT · MD</p>
+              <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt,.md" style={{display:"none"}} onChange={e=>handleFiles(e.target.files)}/>
+            </div>
+
+            <div style={{ textAlign:"center", marginBottom:12 }}>
+              <button onClick={()=>setShowPaste(s=>!s)} style={{
+                background:"none", border:"none",
+                color:C.brand, fontSize:12, fontWeight:600, cursor:"pointer",
+              }}>
+                {showPaste?"▲ Hide paste area":"▼ Or paste text directly"}
+              </button>
+            </div>
+
+            {showPaste && (
+              <div style={{ ...card, marginBottom:12 }}>
+                <label style={{ ...sldsLabel, marginBottom:8 }}>Paste content</label>
+                <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)}
+                  placeholder={mode==="agile"?"Paste user stories here — include story description and acceptance criteria…":"Paste solution design, requirements, or handoff notes…"}
+                  style={{ ...inp, minHeight:140, resize:"vertical", lineHeight:1.6 }}/>
+                <div style={{ display:"flex", justifyContent:"flex-end", marginTop:10 }}>
+                  <button onClick={addPaste} disabled={!pasteText.trim()} style={{ ...btn, opacity:pasteText.trim()?1:0.5 }}>
+                    + Add as artifact
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {files.length>0 && (
+              <div style={{ ...card, marginBottom:12 }}>
+                <label style={{ ...sldsLabel, marginBottom:12 }}>Artifacts loaded ({files.length})</label>
+                {files.map((f,i)=>(
+                  <div key={i} style={{
+                    display:"flex", alignItems:"center", gap:10,
+                    padding:"10px 12px", borderRadius:8,
+                    background:C.surfaceAlt, marginBottom:6,
+                    border:`1px solid ${C.border}`,
+                  }}>
+                    <span>{f.name.startsWith("Pasted")?"📝":"📄"}</span>
+                    <span style={{ flex:1, fontSize:13, color:C.text }}>{f.name}</span>
+                    <span style={{ fontSize:11, color:C.textMuted }}>{f.size>1024?`${(f.size/1024).toFixed(1)} KB`:`${f.size} B`}</span>
+                    <button onClick={()=>setFiles(prev=>prev.filter((_,j)=>j!==i))} style={{
+                      background:"none", border:"none",
+                      color:C.textMuted, cursor:"pointer", fontSize:18, lineHeight:1,
+                    }}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {error && (
+              <div style={{
+                padding:"12px 16px",
+                background:C.errorBg,
+                border:`1px solid ${C.error}33`,
+                borderLeft:`3px solid ${C.error}`,
+                borderRadius:8,
+                fontSize:13, color:C.error, marginBottom:12, lineHeight:1.6,
+              }}>⚠  {error}</div>
+            )}
+
+            {analyzing && <Spinner mode={mode}/>}
+
+            <div style={{ display:"flex", justifyContent:"space-between" }}>
+              <button style={btnSec} onClick={()=>setStep("setup")}>← Back</button>
+              <button style={{ ...btn, opacity:(!files.length||analyzing)?0.5:1 }} disabled={!files.length||analyzing} onClick={analyze}>
+                {analyzing?"Analysing…":mode==="agile"?"✨ Check sprint readiness":"✨ Run analysis"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══ RESULTS ══ */}
+        {step==="results" && results && (
+          <div className="fu">
+
+            {/* Hero score */}
+            <div style={{
+              ...card,
+              display:"flex", gap:28, alignItems:"center",
+              marginBottom:20,
+              borderTop:`4px solid ${scoreColor}`,
+            }}>
+              <ScoreRing score={score} color={scoreColor} label={scoreLabel}/>
+              <div style={{ flex:1 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, flexWrap:"wrap" }}>
+                  <label style={sldsLabel}>
+                    {mode==="agile"?"Sprint readiness score":"Delivery readiness score"}
+                  </label>
+                  <EinsteinPill/>
+                </div>
+                <p style={{ fontSize:14, color:C.text, lineHeight:1.7 }}>{results.summary}</p>
+
+                {/* Agile summary pills */}
+                {mode==="agile" && results.sprintRecommendation && (
+                  <div style={{ display:"flex", gap:20, marginTop:18, flexWrap:"wrap" }}>
+                    {[
+                      {label:"Ready",  items:results.sprintRecommendation.ready,  color:C.success},
+                      {label:"Refine", items:results.sprintRecommendation.refine, color:C.warning},
+                      {label:"Defer",  items:results.sprintRecommendation.defer,  color:C.error},
+                    ].map(s=>(
+                      <div key={s.label} style={{ textAlign:"center" }}>
+                        <div style={{ fontSize:24, fontWeight:700, color:s.color }}>{s.items?.length||0}</div>
+                        <div style={{ ...sldsLabel, marginTop:2 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Waterfall summary pills */}
+                {mode==="waterfall" && (
+                  <div style={{ display:"flex", gap:24, marginTop:18, flexWrap:"wrap" }}>
+                    {[
+                      {label:"Present",    n:results.package?.present?.length||0,    color:C.success},
+                      {label:"Incomplete", n:results.package?.incomplete?.length||0, color:C.warning},
+                      {label:"Missing",    n:results.package?.missing?.length||0,    color:C.error},
+                      {label:"NFR gaps",   n:results.improvementPlan?.missingNFRs?.length||0, color:C.einstein},
+                    ].map(s=>(
+                      <div key={s.label} style={{ textAlign:"center" }}>
+                        <div style={{ fontSize:22, fontWeight:700, color:s.color }}>{s.n}</div>
+                        <div style={{ ...sldsLabel, marginTop:2 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ══════════════════ AGILE RESULTS ══════════════════ */}
+            {mode==="agile" && (
+              <>
+                {results.sprintRecommendation?.advice && (
+                  <div style={{
+                    ...card, marginBottom:20,
+                    borderLeft:`3px solid ${C.einstein}`,
+                    background:C.einsteinBg+"33",
+                  }}>
+                    <div style={{ marginBottom:8 }}>
+                      <EinsteinPill text="Sprint planning recommendation"/>
+                    </div>
+                    <p style={{ fontSize:13, color:C.text, lineHeight:1.7 }}>{results.sprintRecommendation.advice}</p>
+                  </div>
+                )}
+
+                <Divider step="1" label="Story-by-story analysis" color={C.brand}/>
+
+                {results.stories?.map((story,si)=>{
+                  const isOpen = expandedStory===si;
+                  const passCount = story.dorChecks ? Object.values(story.dorChecks).filter(v=>v?.pass).length : 0;
+                  const totalCount = DOR_CRITERIA.length;
+                  const verdictColor = story.verdict==="READY"?C.success:story.verdict==="DEFER"?C.error:C.warning;
+                  return (
+                    <div key={si} style={{
+                      ...card, marginBottom:12,
+                      borderLeft:`3px solid ${verdictColor}`,
+                    }}>
+                      <div onClick={()=>setExpandedStory(isOpen?null:si)} style={{ cursor:"pointer" }}>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:12, flex:1 }}>
+                            <span style={{
+                              fontSize:10, fontWeight:700, color:C.textMuted,
+                              background:C.surfaceAlt, border:`1px solid ${C.border}`,
+                              borderRadius:9999, padding:"2px 10px", minWidth:62, textAlign:"center",
+                              letterSpacing:0.5,
+                            }}>{story.id}</span>
+                            <span style={{ fontSize:14, fontWeight:600, color:C.text, flex:1 }}>{story.title}</span>
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                            <Verdict v={story.verdict}/>
+                            <span style={{ fontSize:12, color:C.textMuted, whiteSpace:"nowrap", fontWeight:600 }}>{passCount}/{totalCount} DoR</span>
+                            <span style={{ color:C.textMuted, fontSize:12 }}>{isOpen?"▲":"▼"}</span>
+                          </div>
+                        </div>
+                        <div style={{ height:6, background:C.border, borderRadius:9999, marginTop:12, overflow:"hidden" }}>
+                          <div style={{
+                            height:"100%", width:`${(passCount/totalCount)*100}%`,
+                            background:verdictColor, borderRadius:9999,
+                            transition:"width 1s ease",
+                          }}/>
+                        </div>
+                        {!isOpen && story.topFix && (
+                          <div style={{
+                            marginTop:10, display:"flex", alignItems:"flex-start", gap:8,
+                            padding:"8px 12px",
+                            background:C.einsteinBg+"55",
+                            border:`1px solid ${C.einsteinBg}`,
+                            borderRadius:8,
+                          }}>
+                            <span style={{ color:C.einstein, fontSize:13 }}>✨</span>
+                            <span style={{ fontSize:12, color:C.text, lineHeight:1.55 }}>
+                              <strong style={{ color:C.einstein }}>Top fix · </strong>{story.topFix}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {isOpen && (
+                        <div style={{ marginTop:20 }}>
+                          <label style={{ ...sldsLabel, marginBottom:4 }}>Definition of Ready checklist</label>
+                          <div>
+                            {DOR_CRITERIA.map(crit=>(
+                              <DorRow key={crit.key} criterion={crit} data={story.dorChecks?.[crit.key]}/>
+                            ))}
+                          </div>
+
+                          {story.improvedStory && (
+                            <>
+                              <div style={{ display:"flex", alignItems:"center", gap:10, margin:"22px 0 10px" }}>
+                                <label style={sldsLabel}>Improved story</label>
+                                <EinsteinPill/>
+                              </div>
+                              <div style={{
+                                background:C.einsteinBg+"55",
+                                border:`1px solid ${C.einsteinBg}`,
+                                borderLeft:`3px solid ${C.einstein}`,
+                                borderRadius:8, padding:"14px 16px",
+                              }}>
+                                <p style={{ fontSize:13, color:C.text, lineHeight:1.75, whiteSpace:"pre-wrap" }}>{story.improvedStory}</p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {/* ══════════════════ WATERFALL RESULTS ══════════════════ */}
+            {mode==="waterfall" && (
+              <>
+                <Divider step="1" label="Package check" color={C.brand}/>
+
+                {results.package?.present?.length>0 && (
+                  <div style={{ ...card, marginBottom:12 }}>
+                    <label style={{ ...sldsLabel, color:C.success, marginBottom:4 }}>✓  Complete and present</label>
+                    {results.package.present.map((p,i)=>(
+                      <PackageRow key={i} icon="✅" item={p.item} detail={p.detail} tag="COMPLETE" tagColor={C.success} tagBg={C.successBg}/>
+                    ))}
+                  </div>
+                )}
+
+                {results.package?.incomplete?.length>0 && (
+                  <div style={{ ...card, marginBottom:12 }}>
+                    <label style={{ ...sldsLabel, color:C.warning, marginBottom:4 }}>!  Incomplete</label>
+                    {results.package.incomplete.map((p,i)=>(
+                      <PackageRow key={i} icon="⚠️" item={p.item} detail={p.detail} tag="INCOMPLETE" tagColor={C.warning} tagBg={C.warningBg}>
+                        {p.suggestion && <p style={{ fontSize:12, color:C.warning, marginTop:5 }}>→ {p.suggestion}</p>}
+                        <Example label="Einstein suggested addition" text={p.example} accent={C.einstein}/>
+                      </PackageRow>
+                    ))}
+                  </div>
+                )}
+
+                {results.package?.missing?.length>0 && (
+                  <div style={{ ...card, marginBottom:4 }}>
+                    <label style={{ ...sldsLabel, color:C.error, marginBottom:4 }}>✕  Missing — blockers</label>
+                    {results.package.missing.map((p,i)=>(
+                      <PackageRow key={i} icon="🚫" item={p.item} detail={p.detail} tag="MISSING" tagColor={C.error} tagBg={C.errorBg}>
+                        {p.impact && <p style={{ fontSize:12, color:C.error, marginTop:5 }}>⚡ Risk: {p.impact}</p>}
+                        <Example label="What it should contain" text={p.example} accent={C.einstein}/>
+                      </PackageRow>
+                    ))}
+                  </div>
+                )}
+
+                <Divider step="2" label="Quality dimensions" color={C.brand}/>
+                <div style={{ ...card, marginBottom:4 }}>
+                  {QUALITY_DIMS.map(dim=><DimBar key={dim.key} dim={dim} data={results.qualityDimensions?.[dim.key]}/>)}
+                </div>
+
+                <Divider step="3" label="Improvement plan" color={C.einstein}/>
+
+                {results.improvementPlan?.improvedStories?.length>0 && (
+                  <div style={{ ...card, marginBottom:12 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+                      <label style={sldsLabel}>Story rewrites</label>
+                      <EinsteinPill/>
+                    </div>
+                    {results.improvementPlan.improvedStories.map((s,i)=>{
+                      const last = i===results.improvementPlan.improvedStories.length-1;
+                      return (
+                        <div key={i} style={{
+                          paddingBottom:last?0:20,
+                          marginBottom:last?0:20,
+                          borderBottom:last?"none":`1px solid ${C.border}`,
+                        }}>
+                          <label style={{ ...sldsLabel, marginBottom:6 }}>Original</label>
+                          <p style={{
+                            fontSize:13, color:C.textMuted, lineHeight:1.7,
+                            background:C.surfaceAlt, padding:"10px 14px",
+                            borderRadius:8, border:`1px solid ${C.border}`,
+                            fontStyle:"italic",
+                          }}>{s.original}</p>
+                          <div style={{ display:"flex", alignItems:"center", gap:10, margin:"14px 0 6px" }}>
+                            <label style={sldsLabel}>Improved</label>
+                            <EinsteinPill/>
+                          </div>
+                          <p style={{
+                            fontSize:13, color:C.text, lineHeight:1.7,
+                            background:C.einsteinBg+"55",
+                            padding:"10px 14px",
+                            borderRadius:8,
+                            border:`1px solid ${C.einsteinBg}`,
+                            borderLeft:`3px solid ${C.einstein}`,
+                          }}>{s.improved}</p>
+                          {s.reason && <p style={{ fontSize:12, color:C.textMuted, marginTop:8 }}>💡 {s.reason}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {results.improvementPlan?.missingNFRs?.length>0 && (
+                  <div style={{ ...card, marginBottom:12 }}>
+                    <label style={{ ...sldsLabel, color:C.warning, marginBottom:16 }}>🚧  Missing non-functional requirements</label>
+                    {results.improvementPlan.missingNFRs.map((n,i)=>{
+                      const last = i===results.improvementPlan.missingNFRs.length-1;
+                      return (
+                        <div key={i} style={{
+                          paddingBottom:last?0:16,
+                          marginBottom:last?0:16,
+                          borderBottom:last?"none":`1px solid ${C.border}`,
+                        }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
+                            <span style={{
+                              fontSize:11, background:C.warningBg, color:C.warning,
+                              borderRadius:9999, padding:"3px 10px",
+                              fontWeight:700, letterSpacing:0.5, textTransform:"uppercase",
+                            }}>{n.area}</span>
+                            <span style={{ fontSize:13, fontWeight:600, color:C.text }}>{n.detail?.split(".")[0]}</span>
+                          </div>
+                          <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.6 }}>{n.detail}</p>
+                          {n.impact && <p style={{ fontSize:12, color:C.warning, marginTop:4 }}>⚡ Risk: {n.impact}</p>}
+                          <Example label="Einstein recommended requirement" text={n.recommendation} accent={C.einstein}/>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {results.improvementPlan?.salesforceCapabilities?.length>0 && (
+                  <div style={{ ...card, marginBottom:12 }}>
+                    <label style={{ ...sldsLabel, color:C.brand, marginBottom:16 }}>☁️  Salesforce capability mapping</label>
+                    {results.improvementPlan.salesforceCapabilities.map((c,i)=>{
+                      const last = i===results.improvementPlan.salesforceCapabilities.length-1;
+                      return (
+                        <div key={i} style={{
+                          paddingBottom:last?0:14,
+                          marginBottom:last?0:14,
+                          borderBottom:last?"none":`1px solid ${C.border}`,
+                        }}>
+                          <p style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:8 }}>{c.requirement}</p>
+                          <div style={{ display:"flex", gap:10, marginBottom:5, alignItems:"flex-start" }}>
+                            <span style={{
+                              fontSize:11, color:C.success, background:C.successBg,
+                              borderRadius:9999, padding:"2px 10px",
+                              fontWeight:700, letterSpacing:0.5, whiteSpace:"nowrap",
+                            }}>SF STANDARD</span>
+                            <span style={{ fontSize:12, color:C.text, lineHeight:1.6 }}>{c.standardCapability}</span>
+                          </div>
+                          {c.customizationNeeded && (
+                            <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                              <span style={{
+                                fontSize:11, color:C.warning, background:C.warningBg,
+                                borderRadius:9999, padding:"2px 10px",
+                                fontWeight:700, letterSpacing:0.5, whiteSpace:"nowrap",
+                              }}>CUSTOM NEED</span>
+                              <span style={{ fontSize:12, color:C.textMuted, lineHeight:1.6 }}>{c.customizationNeeded}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
+            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:20, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
+              <button style={btnSec} onClick={reset}>↺  Start new analysis</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

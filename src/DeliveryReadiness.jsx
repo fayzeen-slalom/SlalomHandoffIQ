@@ -471,7 +471,7 @@ export default function HandoffRadar() {
   const [expandedStory, setExpandedStory] = useState(null);
   const fileRef = useRef();
   const [apiKey, setApiKey]               = useState(()=>localStorage.getItem("handoffiq_api_key")||"");
-  const [showKeyBanner, setShowKeyBanner] = useState(false);
+  const [showKeyBanner, setShowKeyBanner] = useState(()=>!localStorage.getItem("handoffiq_api_key"));
   const [keyInput, setKeyInput]           = useState("");
   const [showKeyValue, setShowKeyValue]   = useState(false);
 
@@ -482,7 +482,6 @@ export default function HandoffRadar() {
   const [saveFlash, setSaveFlash]         = useState(false);
 
   useEffect(() => { loadPdfJs().catch(()=>{}); }, []);
-  useEffect(() => { if (!apiKey) setShowKeyBanner(true); }, []);
 
   const readFile = async (file) => {
     const ext = file.name.split(".").pop().toLowerCase();
@@ -521,7 +520,7 @@ export default function HandoffRadar() {
 
   const safeParseJson = (text) => {
     let s = text.replace(/```json|```/g,"").trim();
-    try { return JSON.parse(s); } catch(_) {}
+    try { return JSON.parse(s); } catch { /* not valid JSON, continue */ }
     try {
       s = s.replace(/,(\s*[\]}])/g,"$1");
       s = s.replace(/,\s*"[^"]*"\s*:\s*$/,"");

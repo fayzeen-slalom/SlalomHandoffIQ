@@ -351,12 +351,80 @@ function DimBar({ dim, data }) {
 }
 
 /* ── Spinner ── */
-function Spinner({ mode }) {
-  const lines = mode==="agile"
-    ? ["Parsing stories…","Checking Definition of Ready…","Generating sprint recommendations…"]
-    : ["Package check…","Quality gate…","Improvement plan…"];
+const SPINNER_MESSAGES = {
+  agile: [
+    "Reading your user stories…",
+    "Checking Definition of Ready criteria…",
+    "Evaluating acceptance criteria completeness…",
+    "Assessing story sizing and dependencies…",
+    "Scoring testability and data model clarity…",
+    "Flagging gaps and missing edge cases…",
+    "Rewriting stories for sprint readiness…",
+    "Finalising sprint recommendations…",
+  ],
+  gate: {
+    default: [
+      "Reviewing handoff package…",
+      "Evaluating clarity and testability…",
+      "Assessing business value alignment…",
+      "Checking dependency and data risks…",
+      "Mapping Salesforce capabilities…",
+      "Identifying missing NFRs…",
+      "Drafting improvement plan…",
+      "Rewriting stories for delivery readiness…",
+    ],
+    "ba-dev": [
+      "Reviewing requirements and user stories…",
+      "Checking acceptance criteria completeness…",
+      "Assessing data model and field definitions…",
+      "Evaluating edge cases and error handling…",
+      "Checking UI/UX specification coverage…",
+      "Mapping Salesforce standard capabilities…",
+      "Identifying missing non-functional requirements…",
+      "Generating build-ready improvement plan…",
+    ],
+    "arch-delivery": [
+      "Reviewing solution design document…",
+      "Evaluating architecture clarity and completeness…",
+      "Checking NFR and performance coverage…",
+      "Assessing integration and dependency risks…",
+      "Reviewing data migration and rollback strategy…",
+      "Mapping components to Salesforce capabilities…",
+      "Identifying implementation ambiguities…",
+      "Generating delivery readiness improvement plan…",
+    ],
+    "dev-qa": [
+      "Reviewing build completion artefacts…",
+      "Checking test data and sandbox availability…",
+      "Evaluating known defects documentation…",
+      "Assessing AC-to-test-scenario traceability…",
+      "Checking edge cases and error paths flagged…",
+      "Evaluating deployment and test setup notes…",
+      "Scoring handoff completeness for QA…",
+      "Generating QA readiness recommendations…",
+    ],
+    "workstream": [
+      "Reviewing cross-team handoff package…",
+      "Checking shared dependency documentation…",
+      "Evaluating interface contracts and schemas…",
+      "Assessing team assumptions and risk flags…",
+      "Checking timeline and milestone alignment…",
+      "Scoring inter-team communication clarity…",
+      "Identifying coordination gaps…",
+      "Generating cross-workstream improvement plan…",
+    ],
+  },
+};
+
+function Spinner({ mode, handoffType }) {
+  const messages = mode === "agile"
+    ? SPINNER_MESSAGES.agile
+    : (SPINNER_MESSAGES.gate[handoffType] || SPINNER_MESSAGES.gate.default);
   const [idx, setIdx] = useState(0);
-  useEffect(() => { const t=setInterval(()=>setIdx(i=>(i+1)%lines.length),1800); return ()=>clearInterval(t); },[]);
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % messages.length), 1800);
+    return () => clearInterval(t);
+  }, [messages.length]);
   return (
     <div style={{ textAlign:"center", padding:"36px 0" }}>
       <div style={{ position:"relative", width:80, height:80, margin:"0 auto 18px" }}>
@@ -369,7 +437,7 @@ function Spinner({ mode }) {
         ))}
         <div style={{ position:"absolute", inset:"34%", background:C.ai, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14 }}>✨</div>
       </div>
-      <p style={{ fontSize:13, color:C.ai, fontWeight:600, marginBottom:4 }}>{lines[idx]}</p>
+      <p style={{ fontSize:13, color:C.ai, fontWeight:600, marginBottom:4 }}>{messages[idx]}</p>
       <p style={{ fontSize:11, color:C.textMuted, letterSpacing:0.5 }}>Powered by Slalom HandoffIQ</p>
     </div>
   );
@@ -406,6 +474,12 @@ export default function HandoffRadar() {
   const [showKeyBanner, setShowKeyBanner] = useState(false);
   const [keyInput, setKeyInput]           = useState("");
   const [showKeyValue, setShowKeyValue]   = useState(false);
+
+  const [savedAnalyses, setSavedAnalyses] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem("handoffiq_saved_analyses")||"[]"); } catch{ return []; }
+  });
+  const [showHistory, setShowHistory]     = useState(false);
+  const [saveFlash, setSaveFlash]         = useState(false);
 
   useEffect(() => { loadPdfJs().catch(()=>{}); }, []);
   useEffect(() => { if (!apiKey) setShowKeyBanner(true); }, []);
@@ -487,8 +561,27 @@ export default function HandoffRadar() {
       });
       const data = await res.json();
       if(data.error) throw new Error(data.error.message);
-      setResults(safeParseJson(data.content.map(c=>c.text||"").join("")));
+      const parsed = safeParseJson(data.content.map(c=>c.text||"").join(""));
+      setResults(parsed);
       setStep("results");
+      const types = mode==="agile" ? AGILE_TYPES : WATERFALL_TYPES;
+      const label = types.find(t=>t.id===handoffType)?.label || handoffType;
+      const entry = {
+        id: Date.now().toString(),
+        savedAt: new Date().toISOString(),
+        mode, handoffType,
+        handoffLabel: label,
+        fileNames: files.map(f=>f.name),
+        score: mode==="agile" ? (parsed?.sprintReadinessScore??0) : (parsed?.deliveryScore??0),
+        results: parsed,
+      };
+      setSavedAnalyses(prev => {
+        const updated = [entry, ...prev].slice(0, 10);
+        localStorage.setItem("handoffiq_saved_analyses", JSON.stringify(updated));
+        return updated;
+      });
+      setSaveFlash(true);
+      setTimeout(()=>setSaveFlash(false), 2500);
     } catch(e) { setError("Analysis failed: "+e.message); }
     finally { setAnalyzing(false); }
   };
@@ -573,6 +666,22 @@ export default function HandoffRadar() {
           </span>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {savedAnalyses.length > 0 && (
+            <button onClick={()=>setShowHistory(s=>!s)} style={{
+              background: showHistory ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.12)",
+              color:"#fff", border:"1px solid rgba(255,255,255,0.3)",
+              borderRadius:9999, padding:"3px 12px",
+              fontSize:11, fontWeight:600, cursor:"pointer",
+              display:"flex", alignItems:"center", gap:5,
+            }}>
+              📂 History ({savedAnalyses.length})
+            </button>
+          )}
+          {saveFlash && (
+            <span style={{ fontSize:11, color:"#4ade80", fontWeight:600, animation:"fadeUp 0.3s ease" }}>
+              ✓ Saved
+            </span>
+          )}
           <Link to="/about" style={{
             color:"rgba(255,255,255,0.85)", fontSize:12, fontWeight:500,
             textDecoration:"none", padding:"3px 10px",
@@ -603,6 +712,89 @@ export default function HandoffRadar() {
           }
         </div>
       </div>
+
+      {/* History Panel */}
+      {showHistory && (
+        <div style={{
+          position:"fixed", top:48, right:0, bottom:0, width:360,
+          background:C.surface, borderLeft:`1px solid ${C.border}`,
+          boxShadow:"-4px 0 16px rgba(0,0,0,0.12)",
+          zIndex:20, display:"flex", flexDirection:"column",
+          animation:"fadeUp 0.2s ease",
+        }}>
+          <div style={{
+            padding:"16px 20px", borderBottom:`1px solid ${C.border}`,
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+          }}>
+            <span style={{ fontWeight:700, fontSize:14, color:C.text }}>Saved Analyses</span>
+            <button onClick={()=>setShowHistory(false)} style={{
+              background:"none", border:"none", cursor:"pointer",
+              fontSize:18, color:C.textMuted, lineHeight:1,
+            }}>×</button>
+          </div>
+          <div style={{ flex:1, overflowY:"auto", padding:"12px 0" }}>
+            {savedAnalyses.map(entry => {
+              const date = new Date(entry.savedAt);
+              const label = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}`;
+              const scoreColor = entry.score >= 70 ? C.success : entry.score >= 40 ? C.warning : C.error;
+              const scoreBg   = entry.score >= 70 ? C.successBg : entry.score >= 40 ? C.warningBg : C.errorBg;
+              return (
+                <div key={entry.id} style={{
+                  margin:"4px 12px", borderRadius:8,
+                  border:`1px solid ${C.border}`, overflow:"hidden",
+                }}>
+                  <button onClick={()=>{
+                    setMode(entry.mode);
+                    setHandoffType(entry.handoffType);
+                    setResults(entry.results);
+                    setStep("results");
+                    setShowHistory(false);
+                  }} style={{
+                    width:"100%", background:C.surfaceAlt, border:"none",
+                    padding:"12px 14px", cursor:"pointer", textAlign:"left",
+                    display:"flex", flexDirection:"column", gap:5,
+                  }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <span style={{ fontSize:12, fontWeight:600, color:C.text }}>{entry.handoffLabel}</span>
+                      <span style={{
+                        background:scoreBg, color:scoreColor,
+                        borderRadius:9999, padding:"1px 8px", fontSize:11, fontWeight:700,
+                      }}>{entry.score}</span>
+                    </div>
+                    <div style={{ fontSize:11, color:C.textMuted }}>
+                      {entry.mode === "agile" ? "Agile" : "Gate"} · {entry.fileNames.join(", ")}
+                    </div>
+                    <div style={{ fontSize:10, color:C.textSubtle }}>{label}</div>
+                  </button>
+                  <button onClick={()=>{
+                    setSavedAnalyses(prev => {
+                      const updated = prev.filter(a=>a.id!==entry.id);
+                      localStorage.setItem("handoffiq_saved_analyses", JSON.stringify(updated));
+                      return updated;
+                    });
+                  }} style={{
+                    width:"100%", background:"none", border:"none",
+                    borderTop:`1px solid ${C.border}`,
+                    padding:"6px", fontSize:11, color:C.textSubtle,
+                    cursor:"pointer",
+                  }}>Remove</button>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ padding:"12px 20px", borderTop:`1px solid ${C.border}` }}>
+            <button onClick={()=>{
+              setSavedAnalyses([]);
+              localStorage.removeItem("handoffiq_saved_analyses");
+              setShowHistory(false);
+            }} style={{
+              width:"100%", background:C.errorBg, color:C.error,
+              border:`1px solid ${C.error}33`, borderRadius:6,
+              padding:"8px", fontSize:12, fontWeight:600, cursor:"pointer",
+            }}>Clear all saved analyses</button>
+          </div>
+        </div>
+      )}
 
       {/* API Key Banner */}
       {showKeyBanner && (
@@ -847,7 +1039,7 @@ export default function HandoffRadar() {
               }}>⚠  {error}</div>
             )}
 
-            {analyzing && <Spinner mode={mode}/>}
+            {analyzing && <Spinner mode={mode} handoffType={handoffType}/>}
 
             <div style={{ display:"flex", justifyContent:"space-between" }}>
               <button style={btnSec} onClick={()=>setStep("setup")}>← Back</button>

@@ -472,7 +472,7 @@ export default function HandoffRadar() {
   const [expandAll, setExpandAll]         = useState(false);
   const fileRef = useRef();
   const [apiKey, setApiKey]               = useState(()=>localStorage.getItem("handoffiq_api_key")||"");
-  const [showKeyBanner, setShowKeyBanner] = useState(()=>!localStorage.getItem("handoffiq_api_key"));
+  const [showKeyBanner, setShowKeyBanner] = useState(false);
   const [keyInput, setKeyInput]           = useState("");
   const [showKeyValue, setShowKeyValue]   = useState(false);
 
@@ -641,7 +641,7 @@ export default function HandoffRadar() {
   return (
     <div style={{ background:C.pageBg, minHeight:"100vh", color:C.text, fontFamily:FONT }}>
       <style>{`
-        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeUp{from{transform:translateY(8px)}to{transform:translateY(0)}}
         .fu{animation:fadeUp 0.3s ease forwards}
         @keyframes ping{0%{transform:scale(0.3);opacity:0.8}100%{transform:scale(2.4);opacity:0}}
         input:focus, textarea:focus { outline:none; border-color:${C.brand} !important; box-shadow:0 0 0 3px ${C.brand}33; }
@@ -805,7 +805,7 @@ export default function HandoffRadar() {
       )}
 
       {/* API Key Banner */}
-      {showKeyBanner && (
+      {(!apiKey || showKeyBanner) && (
         <div style={{
           background: apiKey ? C.surface : C.warningBg,
           borderBottom:`1px solid ${apiKey ? C.border : C.warning+"44"}`,

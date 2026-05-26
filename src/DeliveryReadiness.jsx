@@ -130,6 +130,32 @@ function AIPill({ text="AI generated", style={} }) {
   );
 }
 
+/* ── Copy button ── */
+function CopyButton({ text, style={} }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text||"").then(()=>{
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 2000);
+    });
+  };
+  return (
+    <button onClick={copy} style={{
+      background:"none",
+      border:`1px solid ${copied ? C.success : C.border}`,
+      borderRadius:6, padding:"3px 10px",
+      fontSize:11, fontWeight:600, cursor:"pointer",
+      color: copied ? C.success : C.textMuted,
+      fontFamily:"inherit",
+      display:"inline-flex", alignItems:"center", gap:4,
+      transition:"all 0.15s",
+      ...style,
+    }}>
+      {copied ? "✓ Copied" : "Copy"}
+    </button>
+  );
+}
+
 /* ── Mode toggle (SLDS button-group / segmented control) ── */
 function ModeToggle({ mode, onChange }) {
   return (
@@ -225,8 +251,9 @@ function DorRow({ criterion, data }) {
             border:`1px solid ${C.aiBg}`, borderLeft:`3px solid ${C.ai}`,
             borderRadius:8, padding:"10px 12px",
           }}>
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
               <AIPill text="Suggested fix"/>
+              <CopyButton text={data.fix}/>
             </div>
             <p style={{ fontSize:12, color:C.text, lineHeight:1.6 }}>{data.fix}</p>
           </div>
@@ -265,10 +292,11 @@ function Example({ label, text, accent }) {
       borderLeft:`3px solid ${c}`,
       borderRadius:8, padding:"10px 12px",
     }}>
-      <div style={{ marginBottom:5 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
         {useAI
           ? <AIPill text={label}/>
           : <span style={{ fontSize:11, color:c, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase" }}>{label}</span>}
+        <CopyButton text={text}/>
       </div>
       <p style={{ fontSize:12, color:C.text, lineHeight:1.65 }}>{text}</p>
     </div>
@@ -955,9 +983,12 @@ export default function HandoffRadar() {
 
                           {story.improvedStory && (
                             <>
-                              <div style={{ display:"flex", alignItems:"center", gap:10, margin:"22px 0 10px" }}>
-                                <label style={sldsLabel}>Improved story</label>
-                                <AIPill/>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", margin:"22px 0 10px" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                  <label style={sldsLabel}>Improved story</label>
+                                  <AIPill/>
+                                </div>
+                                <CopyButton text={story.improvedStory}/>
                               </div>
                               <div style={{
                                 background:C.aiBg+"55",
@@ -1043,9 +1074,12 @@ export default function HandoffRadar() {
                             borderRadius:8, border:`1px solid ${C.border}`,
                             fontStyle:"italic",
                           }}>{s.original}</p>
-                          <div style={{ display:"flex", alignItems:"center", gap:10, margin:"14px 0 6px" }}>
-                            <label style={sldsLabel}>Improved</label>
-                            <AIPill/>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", margin:"14px 0 6px" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                              <label style={sldsLabel}>Improved</label>
+                              <AIPill/>
+                            </div>
+                            <CopyButton text={s.improved}/>
                           </div>
                           <p style={{
                             fontSize:13, color:C.text, lineHeight:1.7,

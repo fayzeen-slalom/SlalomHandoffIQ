@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 import mammoth from "mammoth";
 
 const WATERFALL_TYPES = [
@@ -572,6 +573,15 @@ export default function HandoffRadar() {
           </span>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <Link to="/about" style={{
+            color:"rgba(255,255,255,0.85)", fontSize:12, fontWeight:500,
+            textDecoration:"none", padding:"3px 10px",
+            borderRadius:9999,
+            transition:"background 0.15s",
+          }}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.15)"}
+            onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+          >About</Link>
           {apiKey
             ? <>
                 <span style={{ fontSize:11, color:"rgba(255,255,255,0.8)", display:"flex", alignItems:"center", gap:5 }}>

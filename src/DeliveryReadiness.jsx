@@ -373,8 +373,13 @@ export default function HandoffRadar() {
   const [dragOver, setDragOver]       = useState(false);
   const [expandedStory, setExpandedStory] = useState(null);
   const fileRef = useRef();
+  const [apiKey, setApiKey]               = useState(()=>localStorage.getItem("handoffiq_api_key")||"");
+  const [showKeyBanner, setShowKeyBanner] = useState(false);
+  const [keyInput, setKeyInput]           = useState("");
+  const [showKeyValue, setShowKeyValue]   = useState(false);
 
   useEffect(() => { loadPdfJs().catch(()=>{}); }, []);
+  useEffect(() => { if (!apiKey) setShowKeyBanner(true); }, []);
 
   const readFile = async (file) => {
     const ext = file.name.split(".").pop().toLowerCase();
@@ -404,6 +409,13 @@ export default function HandoffRadar() {
     setPasteText(""); setShowPaste(false);
   };
 
+  const saveKey = () => {
+    const k = keyInput.trim();
+    if (!k) return;
+    localStorage.setItem("handoffiq_api_key", k);
+    setApiKey(k); setKeyInput(""); setShowKeyBanner(false);
+  };
+
   const safeParseJson = (text) => {
     let s = text.replace(/```json|```/g,"").trim();
     try { return JSON.parse(s); } catch(_) {}
@@ -420,6 +432,7 @@ export default function HandoffRadar() {
 
   const analyze = async () => {
     if (!files.length) { setError("Upload at least one artifact first."); return; }
+    if (!apiKey) { setError("Please set your Anthropic API key first."); setShowKeyBanner(true); return; }
     setAnalyzing(true); setError(""); setExpandedStory(null);
     const combined = files.map(f=>`=== ${f.name} ===\n${f.content}`).join("\n\n");
     const types = mode==="agile" ? AGILE_TYPES : WATERFALL_TYPES;
@@ -430,9 +443,15 @@ export default function HandoffRadar() {
       : "";
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST", headers:{"Content-Type":"application/json"},
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "x-api-key":apiKey,
+          "anthropic-version":"2023-06-01",
+          "anthropic-dangerous-direct-browser-access":"true",
+        },
         body:JSON.stringify({
-          model:"claude-sonnet-4-20250514", max_tokens:8000,
+          model:"claude-sonnet-4-6", max_tokens:8000,
           system: mode==="agile" ? AGILE_PROMPT : WATERFALL_PROMPT,
           messages:[{role:"user",content:`Handoff type: ${typeLabel}${agileContext}\n\nArtifacts:\n${combined}`}],
         }),
@@ -524,7 +543,82 @@ export default function HandoffRadar() {
             {mode==="agile" ? "Agile mode" : "Gate mode"}
           </span>
         </div>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {apiKey
+            ? <>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.8)", display:"flex", alignItems:"center", gap:5 }}>
+                  <span style={{ color:"#4ade80" }}>●</span> API key set
+                </span>
+                <button onClick={()=>{setKeyInput("");setShowKeyBanner(s=>!s);}} style={{
+                  background:"rgba(255,255,255,0.15)", color:"#fff",
+                  border:"1px solid rgba(255,255,255,0.3)",
+                  borderRadius:9999, padding:"3px 12px",
+                  fontSize:11, fontWeight:600, cursor:"pointer",
+                }}>Change</button>
+              </>
+            : <button onClick={()=>setShowKeyBanner(s=>!s)} style={{
+                background:"rgba(255,255,255,0.2)", color:"#fff",
+                border:"1px solid rgba(255,255,255,0.4)",
+                borderRadius:9999, padding:"3px 12px",
+                fontSize:11, fontWeight:600, cursor:"pointer",
+              }}>⚠ Set API key</button>
+          }
+        </div>
       </div>
+
+      {/* API Key Banner */}
+      {showKeyBanner && (
+        <div style={{
+          background: apiKey ? C.surface : C.warningBg,
+          borderBottom:`1px solid ${apiKey ? C.border : C.warning+"44"}`,
+          padding:"14px 28px",
+          display:"flex", alignItems:"center", gap:14, flexWrap:"wrap",
+        }}>
+          <span style={{ fontSize:12, fontWeight:600, color: apiKey ? C.textMuted : C.warning, whiteSpace:"nowrap" }}>
+            {apiKey ? "Update API key" : "⚠  Anthropic API key required"}
+          </span>
+          <div style={{ display:"flex", flex:1, gap:8, alignItems:"center", minWidth:280, maxWidth:520 }}>
+            <div style={{ flex:1, position:"relative" }}>
+              <input
+                type={showKeyValue ? "text" : "password"}
+                value={keyInput}
+                onChange={e=>setKeyInput(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter") saveKey(); }}
+                placeholder="sk-ant-..."
+                style={{
+                  width:"100%", background:C.surface,
+                  border:`1px solid ${C.borderStrong}`, borderRadius:4,
+                  padding:"8px 52px 8px 12px",
+                  color:C.text, fontSize:13, fontFamily:"inherit", boxSizing:"border-box",
+                }}
+              />
+              <button onClick={()=>setShowKeyValue(s=>!s)} style={{
+                position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
+                background:"none", border:"none", color:C.textMuted,
+                cursor:"pointer", fontSize:11, fontWeight:600,
+              }}>{showKeyValue ? "Hide" : "Show"}</button>
+            </div>
+            <button onClick={saveKey} disabled={!keyInput.trim()} style={{
+              background:C.brand, color:"#fff", border:"none",
+              borderRadius:16, padding:"9px 22px",
+              fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
+              opacity:keyInput.trim()?1:0.5, whiteSpace:"nowrap",
+            }}>Save key</button>
+            {apiKey && (
+              <button onClick={()=>setShowKeyBanner(false)} style={{
+                background:C.surface, color:C.brand,
+                border:`1px solid ${C.borderStrong}`,
+                borderRadius:16, padding:"9px 22px",
+                fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
+                whiteSpace:"nowrap",
+              }}>Cancel</button>
+            )}
+          </div>
+          <p style={{ fontSize:11, color:C.textMuted, width:"100%", margin:"4px 0 0" }}>
+            Stored in your browser only — never sent anywhere except the Anthropic API.
+          </p>
+        </div>
+      )}
 
       {/* ── Object header (sub-bar) ── */}
       <div style={{

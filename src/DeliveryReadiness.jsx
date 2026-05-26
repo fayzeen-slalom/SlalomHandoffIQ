@@ -166,8 +166,8 @@ function ModeToggle({ mode, onChange }) {
       padding:4, gap:4,
     }}>
       {[
-        { id:"waterfall", label:"🏗️  Gate / Handoff",  sub:"Stage-gate · Document review", color:C.gate,  bg:C.gateBg },
         { id:"agile",     label:"🔄  Sprint Ready",     sub:"Story-by-story · DoR check",   color:C.agile, bg:C.agileBg },
+        { id:"waterfall", label:"🏗️  Gate / Handoff",  sub:"Stage-gate · Document review", color:C.gate,  bg:C.gateBg },
       ].map(m => {
         const active = mode===m.id;
         return (
@@ -469,6 +469,7 @@ export default function HandoffRadar() {
   const [error, setError]             = useState("");
   const [dragOver, setDragOver]       = useState(false);
   const [expandedStory, setExpandedStory] = useState(null);
+  const [expandAll, setExpandAll]         = useState(false);
   const fileRef = useRef();
   const [apiKey, setApiKey]               = useState(()=>localStorage.getItem("handoffiq_api_key")||"");
   const [showKeyBanner, setShowKeyBanner] = useState(()=>!localStorage.getItem("handoffiq_api_key"));
@@ -482,6 +483,7 @@ export default function HandoffRadar() {
   const [saveFlash, setSaveFlash]         = useState(false);
 
   useEffect(() => { loadPdfJs().catch(()=>{}); }, []);
+  useEffect(() => { if (step === "results") window.scrollTo({ top: 0, behavior: "smooth" }); }, [step]);
 
   const readFile = async (file) => {
     const ext = file.name.split(".").pop().toLowerCase();
@@ -595,6 +597,8 @@ export default function HandoffRadar() {
   const scoreLabel    = mode==="agile"
     ? (score>=75?"Sprint ready":score>=50?"Needs refining":"Not sprint ready")
     : (score>=75?"Delivery ready":score>=50?"Needs work":"Not ready");
+  const activeTypes       = mode==="agile" ? AGILE_TYPES : WATERFALL_TYPES;
+  const activeHandoffLabel = activeTypes.find(t=>t.id===handoffType)?.label || handoffType;
 
   /* ── SLDS-style reusable styles ── */
   const card = {
@@ -714,6 +718,10 @@ export default function HandoffRadar() {
 
       {/* History Panel */}
       {showHistory && (
+        <>
+        <div onClick={()=>setShowHistory(false)} style={{
+          position:"fixed", inset:0, background:"rgba(0,0,0,0.25)", zIndex:19,
+        }}/>
         <div style={{
           position:"fixed", top:48, right:0, bottom:0, width:360,
           background:C.surface, borderLeft:`1px solid ${C.border}`,
@@ -793,6 +801,7 @@ export default function HandoffRadar() {
             }}>Clear all saved analyses</button>
           </div>
         </div>
+        </>
       )}
 
       {/* API Key Banner */}
@@ -857,28 +866,34 @@ export default function HandoffRadar() {
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
         <div>
-          <div style={{ ...sldsLabel, marginBottom:3 }}>Slalom delivery accelerator</div>
+          <div style={{ ...sldsLabel, marginBottom:3 }}>
+            {step==="results" ? `${mode==="agile"?"Agile":"Gate"} analysis · ${activeHandoffLabel}` : "Slalom delivery accelerator"}
+          </div>
           <div style={{ fontSize:18, fontWeight:700, color:C.text }}>
-            {mode==="agile"
-              ? "Sprint readiness · Story-by-story DoR check"
-              : "Stage-gate readiness · Package & quality review"}
+            {step==="results"
+              ? (mode==="agile" ? "Sprint readiness report" : "Delivery readiness report")
+              : mode==="agile"
+                ? "Sprint readiness · Story-by-story DoR check"
+                : "Stage-gate readiness · Package & quality review"}
           </div>
         </div>
         {results && <button onClick={reset} style={btnSec}>↺  New analysis</button>}
       </div>
 
-      <div style={{ maxWidth:780, margin:"0 auto", padding:"28px 24px" }}>
+      <div style={{ maxWidth:900, margin:"0 auto", padding:"28px 24px" }}>
 
         {/* ── Step indicator (SLDS path-style) ── */}
         <div style={{ display:"flex", marginBottom:32, gap:6 }}>
           {["Configure","Upload","Results"].map((s,i)=>{
-            const done    = i<stepIdx;
-            const current = i===stepIdx;
-            const bg      = done ? C.success : current ? C.brand : C.surface;
-            const fg      = done || current ? "#fff" : C.textMuted;
-            const border  = done ? C.success : current ? C.brand : C.borderStrong;
+            const done      = i<stepIdx;
+            const current   = i===stepIdx;
+            const clickable = done;
+            const bg        = done ? C.success : current ? C.brand : C.surface;
+            const fg        = done || current ? "#fff" : C.textMuted;
+            const border    = done ? C.success : current ? C.brand : C.borderStrong;
+            const steps     = ["setup","upload","results"];
             return (
-              <div key={s} style={{
+              <div key={s} onClick={()=>{ if(clickable) setStep(steps[i]); }} style={{
                 flex:1, padding:"10px 14px",
                 background:bg, color:fg,
                 border:`1px solid ${border}`,
@@ -887,6 +902,7 @@ export default function HandoffRadar() {
                 textAlign:"center",
                 transition:"all 0.3s",
                 letterSpacing:0.3,
+                cursor: clickable ? "pointer" : "default",
               }}>
                 {done ? `✓  ${s}` : `${i+1}.  ${s}`}
               </div>
@@ -984,10 +1000,13 @@ export default function HandoffRadar() {
 
             <div style={{ textAlign:"center", marginBottom:12 }}>
               <button onClick={()=>setShowPaste(s=>!s)} style={{
-                background:"none", border:"none",
-                color:C.brand, fontSize:12, fontWeight:600, cursor:"pointer",
+                background: showPaste ? C.surfaceAlt : C.surface,
+                color:C.brand, border:`1px solid ${C.borderStrong}`,
+                borderRadius:16, padding:"8px 20px",
+                fontSize:12, fontWeight:600, cursor:"pointer",
+                fontFamily:"inherit",
               }}>
-                {showPaste?"▲ Hide paste area":"▼ Or paste text directly"}
+                {showPaste ? "▲ Hide text paste" : "📋 Or paste text directly"}
               </button>
             </div>
 
@@ -1121,10 +1140,22 @@ export default function HandoffRadar() {
                   </div>
                 )}
 
-                <Divider step="1" label="Story-by-story analysis" color={C.brand}/>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", margin:"28px 0 18px" }}>
+                  <Divider step="1" label="Story-by-story analysis" color={C.brand}/>
+                  {results.stories?.length > 1 && (
+                    <button onClick={()=>{ setExpandAll(s=>!s); setExpandedStory(null); }} style={{
+                      background:"none", border:`1px solid ${C.borderStrong}`,
+                      borderRadius:16, padding:"5px 14px",
+                      fontSize:11, fontWeight:600, color:C.textMuted,
+                      cursor:"pointer", fontFamily:"inherit", flexShrink:0, marginLeft:12,
+                    }}>
+                      {expandAll ? "Collapse all" : "Expand all"}
+                    </button>
+                  )}
+                </div>
 
                 {results.stories?.map((story,si)=>{
-                  const isOpen = expandedStory===si;
+                  const isOpen = expandAll || expandedStory===si;
                   const passCount = story.dorChecks ? Object.values(story.dorChecks).filter(v=>v?.pass).length : 0;
                   const totalCount = DOR_CRITERIA.length;
                   const verdictColor = story.verdict==="READY"?C.success:story.verdict==="DEFER"?C.error:C.warning;
@@ -1133,7 +1164,10 @@ export default function HandoffRadar() {
                       ...card, marginBottom:12,
                       borderLeft:`3px solid ${verdictColor}`,
                     }}>
-                      <div onClick={()=>setExpandedStory(isOpen?null:si)} style={{ cursor:"pointer" }}>
+                      <div onClick={()=>{
+                        if(expandAll){ setExpandAll(false); setExpandedStory(si); }
+                        else setExpandedStory(isOpen?null:si);
+                      }} style={{ cursor:"pointer" }}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:12, flex:1 }}>
                             <span style={{
@@ -1364,7 +1398,7 @@ export default function HandoffRadar() {
             )}
 
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:20, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
-              <button style={btnSec} onClick={reset}>↺  Start new analysis</button>
+              <button style={btnSec} onClick={reset}>↺  New analysis</button>
             </div>
           </div>
         )}

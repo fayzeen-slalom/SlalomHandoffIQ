@@ -48,9 +48,9 @@ const C = {
   brandDark:     "#014486",
   brandBg:       "#eaf5fe",
 
-  // Einstein (AI)
-  einstein:      "#5a1ba9",
-  einsteinBg:    "#e9d9ff",
+  // AI accent
+  ai:      "#5a1ba9",
+  aiBg:    "#e9d9ff",
 
   // Semantic
   success:       "#2e844a",
@@ -115,12 +115,12 @@ const sldsLabel = {
   display:"block",
 };
 
-/* ── Einstein "AI generated" pill ── */
-function EinsteinPill({ text="Einstein generated", style={} }) {
+/* ── AI generated pill ── */
+function AIPill({ text="AI generated", style={} }) {
   return (
     <span style={{
       display:"inline-flex", alignItems:"center", gap:5,
-      background:C.einsteinBg, color:C.einstein,
+      background:C.aiBg, color:C.ai,
       padding:"3px 10px", borderRadius:9999,
       fontSize:11, fontWeight:700, letterSpacing:0.2,
       ...style,
@@ -221,12 +221,12 @@ function DorRow({ criterion, data }) {
         {data?.note && <p style={{ fontSize:12, color: pass ? C.textMuted : C.warning, lineHeight:1.6 }}>{data.note}</p>}
         {!pass && data?.fix && (
           <div style={{
-            marginTop:8, background:C.einsteinBg+"55",
-            border:`1px solid ${C.einsteinBg}`, borderLeft:`3px solid ${C.einstein}`,
+            marginTop:8, background:C.aiBg+"55",
+            border:`1px solid ${C.aiBg}`, borderLeft:`3px solid ${C.ai}`,
             borderRadius:8, padding:"10px 12px",
           }}>
             <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
-              <EinsteinPill text="Suggested fix"/>
+              <AIPill text="Suggested fix"/>
             </div>
             <p style={{ fontSize:12, color:C.text, lineHeight:1.6 }}>{data.fix}</p>
           </div>
@@ -252,22 +252,22 @@ function Divider({ step, label, color=C.brand }) {
   );
 }
 
-/* ── Example callout (Einstein-flavoured) ── */
+/* ── Example callout ── */
 function Example({ label, text, accent }) {
   if (!text) return null;
-  const useEinstein = accent === C.einstein || !accent;
-  const c = accent || C.einstein;
+  const useAI = accent === C.ai || !accent;
+  const c = accent || C.ai;
   return (
     <div style={{
       marginTop:10,
-      background: useEinstein ? C.einsteinBg+"55" : "#fff",
-      border:`1px solid ${useEinstein ? C.einsteinBg : C.border}`,
+      background: useAI ? C.aiBg+"55" : "#fff",
+      border:`1px solid ${useAI ? C.aiBg : C.border}`,
       borderLeft:`3px solid ${c}`,
       borderRadius:8, padding:"10px 12px",
     }}>
       <div style={{ marginBottom:5 }}>
-        {useEinstein
-          ? <EinsteinPill text={label}/>
+        {useAI
+          ? <AIPill text={label}/>
           : <span style={{ fontSize:11, color:c, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase" }}>{label}</span>}
       </div>
       <p style={{ fontSize:12, color:C.text, lineHeight:1.65 }}>{text}</p>
@@ -316,12 +316,12 @@ function DimBar({ dim, data }) {
       </div>
       {data?.finding    && <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.6 }}>{data.finding}</p>}
       {data?.suggestion && <p style={{ fontSize:12, color:C.warning, marginTop:4 }}>→ {data.suggestion}</p>}
-      <Example label="Einstein example" text={data?.example} accent={C.einstein}/>
+      <Example label="Example" text={data?.example} accent={C.ai}/>
     </div>
   );
 }
 
-/* ── Spinner (Einstein-themed) ── */
+/* ── Spinner ── */
 function Spinner({ mode }) {
   const lines = mode==="agile"
     ? ["Parsing stories…","Checking Definition of Ready…","Generating sprint recommendations…"]
@@ -334,14 +334,14 @@ function Spinner({ mode }) {
         {[0,1,2].map(i=>(
           <div key={i} style={{
             position:"absolute", inset:0,
-            border:`2px solid ${C.einstein}`, borderRadius:"50%",
+            border:`2px solid ${C.ai}`, borderRadius:"50%",
             animation:`ping 2s ease-out ${i*0.65}s infinite`,
           }}/>
         ))}
-        <div style={{ position:"absolute", inset:"34%", background:C.einstein, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14 }}>✨</div>
+        <div style={{ position:"absolute", inset:"34%", background:C.ai, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14 }}>✨</div>
       </div>
-      <p style={{ fontSize:13, color:C.einstein, fontWeight:600, marginBottom:4 }}>{lines[idx]}</p>
-      <p style={{ fontSize:11, color:C.textMuted, letterSpacing:0.5 }}>Powered by Einstein</p>
+      <p style={{ fontSize:13, color:C.ai, fontWeight:600, marginBottom:4 }}>{lines[idx]}</p>
+      <p style={{ fontSize:11, color:C.textMuted, letterSpacing:0.5 }}>Powered by Slalom HandoffIQ</p>
     </div>
   );
 }
@@ -615,13 +615,13 @@ export default function HandoffRadar() {
               {mode==="agile" && AGILE_TYPES.find(t=>t.id===handoffType)?.dorFocus && (
                 <div style={{
                   marginTop:12, padding:"11px 14px",
-                  background:C.einsteinBg+"66",
-                  border:`1px solid ${C.einsteinBg}`,
-                  borderLeft:`3px solid ${C.einstein}`,
+                  background:C.aiBg+"66",
+                  border:`1px solid ${C.aiBg}`,
+                  borderLeft:`3px solid ${C.ai}`,
                   borderRadius:8,
                 }}>
                   <div style={{ marginBottom:5 }}>
-                    <EinsteinPill text="DoR focus for this handoff"/>
+                    <AIPill text="DoR focus for this handoff"/>
                   </div>
                   <p style={{ fontSize:12, color:C.text, lineHeight:1.6 }}>{AGILE_TYPES.find(t=>t.id===handoffType).dorFocus}</p>
                 </div>
@@ -743,7 +743,7 @@ export default function HandoffRadar() {
                   <label style={sldsLabel}>
                     {mode==="agile"?"Sprint readiness score":"Delivery readiness score"}
                   </label>
-                  <EinsteinPill/>
+                  <AIPill/>
                 </div>
                 <p style={{ fontSize:14, color:C.text, lineHeight:1.7 }}>{results.summary}</p>
 
@@ -770,7 +770,7 @@ export default function HandoffRadar() {
                       {label:"Present",    n:results.package?.present?.length||0,    color:C.success},
                       {label:"Incomplete", n:results.package?.incomplete?.length||0, color:C.warning},
                       {label:"Missing",    n:results.package?.missing?.length||0,    color:C.error},
-                      {label:"NFR gaps",   n:results.improvementPlan?.missingNFRs?.length||0, color:C.einstein},
+                      {label:"NFR gaps",   n:results.improvementPlan?.missingNFRs?.length||0, color:C.ai},
                     ].map(s=>(
                       <div key={s.label} style={{ textAlign:"center" }}>
                         <div style={{ fontSize:22, fontWeight:700, color:s.color }}>{s.n}</div>
@@ -788,11 +788,11 @@ export default function HandoffRadar() {
                 {results.sprintRecommendation?.advice && (
                   <div style={{
                     ...card, marginBottom:20,
-                    borderLeft:`3px solid ${C.einstein}`,
-                    background:C.einsteinBg+"33",
+                    borderLeft:`3px solid ${C.ai}`,
+                    background:C.aiBg+"33",
                   }}>
                     <div style={{ marginBottom:8 }}>
-                      <EinsteinPill text="Sprint planning recommendation"/>
+                      <AIPill text="Sprint planning recommendation"/>
                     </div>
                     <p style={{ fontSize:13, color:C.text, lineHeight:1.7 }}>{results.sprintRecommendation.advice}</p>
                   </div>
@@ -838,13 +838,13 @@ export default function HandoffRadar() {
                           <div style={{
                             marginTop:10, display:"flex", alignItems:"flex-start", gap:8,
                             padding:"8px 12px",
-                            background:C.einsteinBg+"55",
-                            border:`1px solid ${C.einsteinBg}`,
+                            background:C.aiBg+"55",
+                            border:`1px solid ${C.aiBg}`,
                             borderRadius:8,
                           }}>
-                            <span style={{ color:C.einstein, fontSize:13 }}>✨</span>
+                            <span style={{ color:C.ai, fontSize:13 }}>✨</span>
                             <span style={{ fontSize:12, color:C.text, lineHeight:1.55 }}>
-                              <strong style={{ color:C.einstein }}>Top fix · </strong>{story.topFix}
+                              <strong style={{ color:C.ai }}>Top fix · </strong>{story.topFix}
                             </span>
                           </div>
                         )}
@@ -863,12 +863,12 @@ export default function HandoffRadar() {
                             <>
                               <div style={{ display:"flex", alignItems:"center", gap:10, margin:"22px 0 10px" }}>
                                 <label style={sldsLabel}>Improved story</label>
-                                <EinsteinPill/>
+                                <AIPill/>
                               </div>
                               <div style={{
-                                background:C.einsteinBg+"55",
-                                border:`1px solid ${C.einsteinBg}`,
-                                borderLeft:`3px solid ${C.einstein}`,
+                                background:C.aiBg+"55",
+                                border:`1px solid ${C.aiBg}`,
+                                borderLeft:`3px solid ${C.ai}`,
                                 borderRadius:8, padding:"14px 16px",
                               }}>
                                 <p style={{ fontSize:13, color:C.text, lineHeight:1.75, whiteSpace:"pre-wrap" }}>{story.improvedStory}</p>
@@ -903,7 +903,7 @@ export default function HandoffRadar() {
                     {results.package.incomplete.map((p,i)=>(
                       <PackageRow key={i} icon="⚠️" item={p.item} detail={p.detail} tag="INCOMPLETE" tagColor={C.warning} tagBg={C.warningBg}>
                         {p.suggestion && <p style={{ fontSize:12, color:C.warning, marginTop:5 }}>→ {p.suggestion}</p>}
-                        <Example label="Einstein suggested addition" text={p.example} accent={C.einstein}/>
+                        <Example label="Suggested addition" text={p.example} accent={C.ai}/>
                       </PackageRow>
                     ))}
                   </div>
@@ -915,7 +915,7 @@ export default function HandoffRadar() {
                     {results.package.missing.map((p,i)=>(
                       <PackageRow key={i} icon="🚫" item={p.item} detail={p.detail} tag="MISSING" tagColor={C.error} tagBg={C.errorBg}>
                         {p.impact && <p style={{ fontSize:12, color:C.error, marginTop:5 }}>⚡ Risk: {p.impact}</p>}
-                        <Example label="What it should contain" text={p.example} accent={C.einstein}/>
+                        <Example label="What it should contain" text={p.example} accent={C.ai}/>
                       </PackageRow>
                     ))}
                   </div>
@@ -926,13 +926,13 @@ export default function HandoffRadar() {
                   {QUALITY_DIMS.map(dim=><DimBar key={dim.key} dim={dim} data={results.qualityDimensions?.[dim.key]}/>)}
                 </div>
 
-                <Divider step="3" label="Improvement plan" color={C.einstein}/>
+                <Divider step="3" label="Improvement plan" color={C.ai}/>
 
                 {results.improvementPlan?.improvedStories?.length>0 && (
                   <div style={{ ...card, marginBottom:12 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
                       <label style={sldsLabel}>Story rewrites</label>
-                      <EinsteinPill/>
+                      <AIPill/>
                     </div>
                     {results.improvementPlan.improvedStories.map((s,i)=>{
                       const last = i===results.improvementPlan.improvedStories.length-1;
@@ -951,15 +951,15 @@ export default function HandoffRadar() {
                           }}>{s.original}</p>
                           <div style={{ display:"flex", alignItems:"center", gap:10, margin:"14px 0 6px" }}>
                             <label style={sldsLabel}>Improved</label>
-                            <EinsteinPill/>
+                            <AIPill/>
                           </div>
                           <p style={{
                             fontSize:13, color:C.text, lineHeight:1.7,
-                            background:C.einsteinBg+"55",
+                            background:C.aiBg+"55",
                             padding:"10px 14px",
                             borderRadius:8,
-                            border:`1px solid ${C.einsteinBg}`,
-                            borderLeft:`3px solid ${C.einstein}`,
+                            border:`1px solid ${C.aiBg}`,
+                            borderLeft:`3px solid ${C.ai}`,
                           }}>{s.improved}</p>
                           {s.reason && <p style={{ fontSize:12, color:C.textMuted, marginTop:8 }}>💡 {s.reason}</p>}
                         </div>
@@ -989,7 +989,7 @@ export default function HandoffRadar() {
                           </div>
                           <p style={{ fontSize:12, color:C.textMuted, lineHeight:1.6 }}>{n.detail}</p>
                           {n.impact && <p style={{ fontSize:12, color:C.warning, marginTop:4 }}>⚡ Risk: {n.impact}</p>}
-                          <Example label="Einstein recommended requirement" text={n.recommendation} accent={C.einstein}/>
+                          <Example label="Recommended requirement" text={n.recommendation} accent={C.ai}/>
                         </div>
                       );
                     })}

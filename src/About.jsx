@@ -152,7 +152,10 @@ export default function About() {
         position: "sticky", top: 0, zIndex: 11,
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ fontSize:18 }}>📡</span>
+          <svg width="22" height="22" viewBox="0 0 80 80" style={{ flexShrink:0 }}>
+            <path d="M 41 4 A 36 36 0 1 1 35 4.5" fill="none" stroke="#ffffff" strokeWidth="8" strokeLinecap="round"/>
+            <path d="M 22 41 L 33 52 L 58 28" fill="none" stroke="#c4a8f0" strokeWidth="7.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
           <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2 }}>Slalom HandoffIQ</span>
           <span style={{ color:"rgba(255,255,255,0.35)", fontSize:16, lineHeight:1, marginTop:1 }}>›</span>
           <span style={{ fontWeight:600, fontSize:15, color:"#fff", letterSpacing:0.1 }}>About</span>
@@ -175,7 +178,12 @@ export default function About() {
         padding:"56px 28px 48px",
         textAlign:"center",
       }}>
-        <div style={{ fontSize:48, marginBottom:16 }}>📡</div>
+        <div style={{ marginBottom:16 }}>
+          <svg width="64" height="64" viewBox="0 0 80 80">
+            <path d="M 41 4 A 36 36 0 1 1 35 4.5" fill="none" stroke="#ffffff" strokeWidth="8" strokeLinecap="round"/>
+            <path d="M 22 41 L 33 52 L 58 28" fill="none" stroke="#c4a8f0" strokeWidth="7.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
         <h1 style={{ margin:"0 0 12px", fontSize:32, fontWeight:800, letterSpacing:-0.5 }}>
           Slalom HandoffIQ
         </h1>

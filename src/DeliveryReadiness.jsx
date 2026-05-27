@@ -656,7 +656,10 @@ export default function HandoffRadar() {
         position:"sticky", top:0, zIndex:11,
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <span style={{ fontSize:18 }}>📡</span>
+          <svg width="22" height="22" viewBox="0 0 80 80" style={{ flexShrink:0 }}>
+            <path d="M 41 4 A 36 36 0 1 1 35 4.5" fill="none" stroke="#ffffff" strokeWidth="8" strokeLinecap="round"/>
+            <path d="M 22 41 L 33 52 L 58 28" fill="none" stroke="#c4a8f0" strokeWidth="7.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
           <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2 }}>Slalom HandoffIQ</span>
           <span style={{
             background:"rgba(255,255,255,0.18)", borderRadius:9999,

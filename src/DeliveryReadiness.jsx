@@ -684,7 +684,9 @@ export default function HandoffRadar() {
 
     try { return JSON.parse(s); } catch { /* try recovery */ }
     try {
-      let r = s.replace(/,(\s*[\]}])/g,"$1");
+      let r = s;
+      r = r.replace(/(["\]}\d])\s*(?:\\[nrt]\s*)+([,\]}])/g, "$1$2");
+      r = r.replace(/,(\s*[\]}])/g,"$1");
       r = r.replace(/,\s*"[^"]*"\s*:\s*$/,"");
       if((r.match(/(?<!\\)"/g)||[]).length%2!==0) r+='"';
       const oa=(r.match(/\[/g)||[]).length-(r.match(/\]/g)||[]).length;

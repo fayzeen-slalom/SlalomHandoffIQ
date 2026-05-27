@@ -1,0 +1,137 @@
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade { animation: fadeUp 0.6s ease-out both; }
+.d1 { animation-delay: 0.05s; }
+.d2 { animation-delay: 0.15s; }
+.d3 { animation-delay: 0.25s; }
+.d4 { animation-delay: 0.35s; }
+.d5 { animation-delay: 0.45s; }
+
+/* Hero pseudo-element glow */
+.about-hero {
+  position: relative;
+  overflow: hidden;
+}
+.about-hero::before {
+  content: "";
+  position: absolute;
+  top: -120px;
+  right: -120px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #eaf5fe 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Mode cards */
+.mode-card {
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 2px 4px 0 rgba(0,0,0,0.08);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.mode-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px 0 rgba(0,0,0,0.10);
+}
+.mode-card.agile {
+  border-top: 3px solid #0176d3;
+  background: linear-gradient(180deg, #eaf5fe 0%, #ffffff 80px);
+}
+.mode-card.gate {
+  border-top: 3px solid #7e4800;
+  background: linear-gradient(180deg, #fef0e1 0%, #ffffff 80px);
+}
+.mode-list li::before {
+  content: "→";
+  color: #0176d3;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.mode-card.gate .mode-list li::before { color: #7e4800; }
+
+/* Team cards */
+.team-card {
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 28px 24px 24px;
+  box-shadow: 0 2px 4px 0 rgba(0,0,0,0.08);
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.team-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px 0 rgba(0,0,0,0.10);
+}
+.team-card:nth-child(1) .team-role { color: #0176d3; }
+.team-card:nth-child(2) .team-role { color: #5a1ba9; }
+.team-card:nth-child(3) .team-role { color: #2e844a; }
+
+/* Artifact rows */
+.artifact-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fafaf9;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.artifact-row:hover {
+  border-color: #0176d3;
+  background: #eaf5fe;
+}
+
+/* Repo button */
+.repo-btn {
+  background: #0176d3;
+  color: #fff;
+  border: none;
+  border-radius: 16px;
+  padding: 9px 22px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: filter 0.15s;
+  font-family: 'Salesforce Sans','Helvetica Neue',Arial,sans-serif;
+}
+.repo-btn:hover { filter: brightness(0.92); }
+
+/* Step cards */
+.step-card {
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 20px 18px;
+  box-shadow: 0 2px 4px 0 rgba(0,0,0,0.08);
+  position: relative;
+}
+.step-card.final .step-num { background: #5a1ba9 !important; }
+
+/* Responsive */
+@media (max-width: 880px) {
+  .problem-grid { grid-template-columns: 1fr !important; }
+  .modes-grid   { grid-template-columns: 1fr !important; }
+  .workflow     { grid-template-columns: 1fr 1fr !important; }
+  .team-grid    { grid-template-columns: 1fr !important; }
+  .artifact-grid { grid-template-columns: 1fr !important; }
+  .about-hero   { padding: 28px !important; }
+  .hero-title   { font-size: 32px !important; }
+  .stat-number  { font-size: 60px !important; }
+}
+@media (max-width: 520px) {
+  .workflow     { grid-template-columns: 1fr !important; }
+  .hero-title   { font-size: 26px !important; }
+  .brand-wordmark { font-size: 30px !important; }
+}

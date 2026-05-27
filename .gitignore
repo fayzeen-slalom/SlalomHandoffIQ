@@ -33,3 +33,6 @@ secrets.json
 
 
 .vercel
+
+# Local Claude Code instructions — not for source control
+CLAUDE.md

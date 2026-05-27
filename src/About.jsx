@@ -147,25 +147,17 @@ export default function About() {
           }}>About</span>
         </div>
         <Link to="/" style={{
-          fontSize:12, color:C.textMuted, letterSpacing:"0.3px",
-          textDecoration:"none", padding:"5px 13px",
-          borderRadius:9999, border:`1px solid ${C.border}`,
+          fontSize:13, fontWeight:700, color:"#fff", letterSpacing:"0.3px",
+          textDecoration:"none", padding:"9px 20px",
+          borderRadius:9999, background:C.primary, border:`1px solid ${C.primary}`,
+          boxShadow:`0 2px 8px ${C.primary}33`,
           transition:"all 0.15s",
+          display:"inline-flex", alignItems:"center", gap:6,
         }}
-          onMouseEnter={e=>{e.currentTarget.style.color=C.primary;e.currentTarget.style.borderColor=C.primary+"55";}}
-          onMouseLeave={e=>{e.currentTarget.style.color=C.textMuted;e.currentTarget.style.borderColor=C.border;}}
+          onMouseEnter={e=>{e.currentTarget.style.background=C.primaryHover;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=`0 4px 12px ${C.primary}55`;}}
+          onMouseLeave={e=>{e.currentTarget.style.background=C.primary;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow=`0 2px 8px ${C.primary}33`;}}
         >← Back to tool</Link>
       </header>
-
-      {/* Sub-bar */}
-      <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"12px 28px" }}>
-        <span style={{ fontSize:11, fontWeight:700, color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.5px", display:"block" }}>
-          Slalom delivery accelerator
-        </span>
-        <div style={{ fontSize:18, fontWeight:700, color:C.text, marginTop:4, letterSpacing:"-0.01em" }}>
-          Delivery Readiness Analyzer
-        </div>
-      </div>
 
       <div style={{ maxWidth:1120, margin:"0 auto", padding:"48px 28px 96px" }}>
 

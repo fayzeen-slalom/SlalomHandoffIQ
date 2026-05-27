@@ -1030,27 +1030,17 @@ export default function HandoffRadar() {
       )}
 
 
-      {/* ── Sub-bar ── */}
-      <div style={{
-        background:C.surface,
-        borderBottom:`1px solid ${C.border}`,
-        padding:"12px 28px",
-        display:"flex", alignItems:"center", justifyContent:"space-between",
-      }}>
-        <div>
-          <div style={{ ...sldsLabel, marginBottom:3 }}>
-            {step==="results" ? `${mode==="agile"?"Agile":"Gate"} analysis · ${activeHandoffLabel}` : "Slalom delivery accelerator"}
-          </div>
-          <div style={{ fontSize:17, fontWeight:700, color:C.text, letterSpacing:"-0.01em" }}>
-            {step==="results"
-              ? (mode==="agile" ? "Sprint readiness report" : "Delivery readiness report")
-              : mode==="agile"
-                ? "Sprint readiness · Story-by-story DoR check"
-                : "Stage-gate readiness · Package & quality review"}
-          </div>
+      {/* ── Sub-bar (only shown on results screen, for the New Analysis button) ── */}
+      {results && (
+        <div style={{
+          background:C.surface,
+          borderBottom:`1px solid ${C.border}`,
+          padding:"12px 28px",
+          display:"flex", alignItems:"center", justifyContent:"flex-end",
+        }}>
+          <button onClick={reset} style={btnSec}>↺  New analysis</button>
         </div>
-        {results && <button onClick={reset} style={btnSec}>↺  New analysis</button>}
-      </div>
+      )}
 
       <div style={{ maxWidth:900, margin:"0 auto", padding:"28px 24px" }}>
 

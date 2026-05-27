@@ -8,7 +8,7 @@ const WATERFALL_TYPES = [
   { id:"ba-dev",        label:"BA → Developer",          desc:"Requirements to build-ready specs",   icon:"📋" },
   { id:"arch-delivery", label:"Architect → Delivery",     desc:"Solution design to implementation",  icon:"🏗️" },
   { id:"workstream",    label:"Workstream → Workstream",  desc:"Cross-team handoff within program",  icon:"🔄" },
-  { id:"client-impl",   label:"Client → Impl. Team",      desc:"Discovery outputs to delivery team", icon:"🤝" },
+  { id:"client-impl",   label:"Client → Impl. Team",      desc:"Pre-discovery outputs to delivery team", icon:"🤝" },
 ];
 
 const AGILE_TYPES = [

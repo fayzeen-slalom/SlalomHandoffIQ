@@ -686,13 +686,16 @@ export default function HandoffRadar() {
             </span>
           )}
           <Link to="/about" style={{
-            color:"rgba(255,255,255,0.85)", fontSize:12, fontWeight:500,
-            textDecoration:"none", padding:"3px 10px",
+            color:"#fff", fontSize:13, fontWeight:600,
+            textDecoration:"none", padding:"5px 16px",
             borderRadius:9999,
+            background:"rgba(255,255,255,0.15)",
+            border:"1px solid rgba(255,255,255,0.25)",
             transition:"background 0.15s",
+            letterSpacing:0.1,
           }}
-            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.15)"}
-            onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.28)"}
+            onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.15)"}
           >About</Link>
           {apiKey
             ? <>

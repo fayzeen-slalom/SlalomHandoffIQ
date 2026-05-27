@@ -1,0 +1,15 @@
+interface:
+  display_name: Integration Story Readiness
+  short_description: Scores platform-agnostic integration stories for developer handoff
+    readiness.
+  icon: assets/icon.svg
+  color: '#06b6d4'
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

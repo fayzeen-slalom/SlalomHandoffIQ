@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
-import { getSkillForMode } from "./skills";
+import { getSkillForContext } from "./skills";
 
 const WATERFALL_TYPES = [
   { id:"ba-dev",        label:"BA → Developer",          desc:"Requirements to build-ready specs",   icon:"📋" },
@@ -577,9 +577,14 @@ const WATERFALL_PROMPT = `You are a delivery accelerator for IT and Salesforce i
 
 Rules: package.present max 3; incomplete+missing max 3 each with examples; improvedStories max 2 full rewrites; missingNFRs max 3 with usable statements; sfCapabilities max 3. Be specific to the artifact.`;
 
-function buildAgilePrompt() {
-  const skill = getSkillForMode("agile");
+function buildAgilePrompt(handoffType) {
+  const skill = getSkillForContext("agile", handoffType);
   const skillBlock = skill?.md || "";
+  const criteria = skill?.criteria || DOR_CRITERIA;
+
+  const dorChecksSchema = criteria
+    .map(c => `"${c.key}":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<concrete remediation if failing, 30-40 words>"}`)
+    .join(",");
 
   const outputBinding = `---
 OUTPUT BINDING (HandoffIQ)
@@ -588,7 +593,7 @@ You operate as the skill above. Produce your response in EXACTLY TWO PARTS, in t
 
 PART 1 — A single valid JSON object. No preamble, no code fences, no commentary. Just the JSON object, matching this shape exactly. The JSON does NOT contain a reportMarkdown field.
 
-{"sprintReadinessScore":<0-100, average across all stories computed as round((rawScore/8)*100)>,"summary":"<2 sentences: overall sprint health and biggest recurring gap>","stories":[{"id":"<Story N>","title":"<story title or first 8 words>","verdict":"<READY|REFINE|DEFER>","score":<0-100 = round((rawScore/8)*100)>,"rawScore":<0-8 integer count of criteria passing>,"primaryReason":"<one sentence>","dorChecks":{"userStoryFormat":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<BA-ready rewrite if failing, 30 words>"},"acceptanceCriteria":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<sample Given/When/Then AC if failing, 40 words>"},"scopeDefined":{"pass":<true|false>,"note":"<10-15 words>","fix":"<scope clarification if failing, 25 words>"},"sfObjectsFieldsUi":{"pass":<true|false>,"note":"<10-15 words>","fix":"<missing Salesforce specifics to add, 30 words>"},"businessRules":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample business rule or validation, 30 words>"},"dependencies":{"pass":<true|false>,"note":"<10-15 words>","fix":"<dependency note if failing, 25 words>"},"securityDataNfrs":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample NFR/security/data requirement, 30 words>"},"testingScenarios":{"pass":<true|false>,"note":"<10-15 words>","fix":"<happy + exception test notes if failing, 25 words>"}},"topFix":"<single most important fix, 20 words>","improvedStory":"<full rewritten story with role/want/value + 2 sample ACs — concrete and specific, or null if already READY>"}],"sprintRecommendation":{"ready":["<story title>"],"refine":["<story title>"],"defer":["<story title>"],"advice":"<2 sentences on sprint planning recommendation>"}}
+{"sprintReadinessScore":<0-100, average across all stories computed as round((rawScore/8)*100)>,"summary":"<2 sentences: overall sprint health and biggest recurring gap>","stories":[{"id":"<Story N>","title":"<story title or first 8 words>","verdict":"<READY|REFINE|DEFER>","score":<0-100 = round((rawScore/8)*100)>,"rawScore":<0-8 integer count of criteria passing>,"primaryReason":"<one sentence>","dorChecks":{${dorChecksSchema}},"topFix":"<single most important fix, 20 words>","improvedStory":"<full rewritten story with role/want/value + 2 sample ACs — concrete and specific, or null if already READY>"}],"sprintRecommendation":{"ready":["<story title>"],"refine":["<story title>"],"defer":["<story title>"],"advice":"<2 sentences on sprint planning recommendation>"}}
 
 PART 2 — On a NEW line immediately after the closing brace of the JSON, write this exact sentinel on its own line:
 
@@ -627,6 +632,9 @@ export default function HandoffRadar() {
   });
   const [showHistory, setShowHistory]     = useState(false);
   const [saveFlash, setSaveFlash]         = useState(false);
+
+  const activeSkill = mode === "agile" ? getSkillForContext("agile", handoffType) : null;
+  const dorCriteria = activeSkill?.criteria || DOR_CRITERIA;
 
   useEffect(() => { loadPdfJs().catch(()=>{}); }, []);
   useEffect(() => { if (step === "results") window.scrollTo({ top: 0, behavior: "smooth" }); }, [step]);
@@ -721,7 +729,7 @@ export default function HandoffRadar() {
         },
         body:JSON.stringify({
           model:selectedModel, max_tokens:64000,
-          system: mode==="agile" ? buildAgilePrompt() : WATERFALL_PROMPT,
+          system: mode==="agile" ? buildAgilePrompt(handoffType) : WATERFALL_PROMPT,
           messages:[{role:"user",content:`Handoff type: ${typeLabel}${agileContext}\n\nArtifacts:\n${combined}`}],
         }),
       });
@@ -1375,7 +1383,7 @@ export default function HandoffRadar() {
                 {results.stories?.map((story,si)=>{
                   const isOpen = expandAll || expandedStory===si;
                   const passCount = story.dorChecks ? Object.values(story.dorChecks).filter(v=>v?.pass).length : 0;
-                  const totalCount = DOR_CRITERIA.length;
+                  const totalCount = dorCriteria.length;
                   const verdictColor = story.verdict==="READY"?C.success:story.verdict==="DEFER"?C.error:C.warning;
                   return (
                     <div key={si} style={{
@@ -1429,7 +1437,7 @@ export default function HandoffRadar() {
                         <div style={{ marginTop:20 }}>
                           <label style={{ ...sldsLabel, marginBottom:4 }}>Definition of Ready checklist</label>
                           <div>
-                            {DOR_CRITERIA.map(crit=>(
+                            {dorCriteria.map(crit=>(
                               <DorRow key={crit.key} criterion={crit} data={story.dorChecks?.[crit.key]}/>
                             ))}
                           </div>

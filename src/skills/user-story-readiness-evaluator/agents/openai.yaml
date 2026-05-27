@@ -1,0 +1,13 @@
+interface:
+  display_name: User Story Readiness Evaluator
+  short_description: Scores Salesforce user stories against an 8-point developer-readiness
+    checklist.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

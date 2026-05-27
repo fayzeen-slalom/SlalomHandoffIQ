@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import mammoth from "mammoth";
+import { getSkillForMode } from "./skills";
 
 const WATERFALL_TYPES = [
   { id:"ba-dev",        label:"BA → Developer",          desc:"Requirements to build-ready specs",   icon:"📋" },
@@ -84,14 +85,14 @@ const QUALITY_DIMS = [
 ];
 
 const DOR_CRITERIA = [
-  { key:"userStoryFormat",    label:"User story format",         desc:"As a / I want / So that" },
-  { key:"acceptanceCriteria", label:"Acceptance criteria",       desc:"Given/When/Then or equivalent" },
-  { key:"sized",              label:"Sized / pointed",           desc:"Team can estimate effort" },
-  { key:"dependenciesClear",  label:"Dependencies identified",   desc:"No hidden blockers" },
-  { key:"nfrConsidered",      label:"NFRs considered",           desc:"Security, scale, performance" },
-  { key:"uiUxReady",          label:"UI/UX defined",             desc:"Mockups or description present" },
-  { key:"dataModelClear",     label:"Data model clear",          desc:"Objects, fields, relationships" },
-  { key:"testable",           label:"Independently testable",    desc:"Can be verified in isolation" },
+  { key:"userStoryFormat",    label:"User story format",                desc:"Role, capability, business value (As a / I want / So that)" },
+  { key:"acceptanceCriteria", label:"Acceptance criteria",              desc:"Complete and testable (Given/When/Then or equivalent)" },
+  { key:"scopeDefined",       label:"Scope clearly defined",            desc:"What's in, what's out; not blended or open-ended" },
+  { key:"sfObjectsFieldsUi",  label:"Salesforce objects / fields / UI", desc:"Objects, fields, pages, flows, components identified" },
+  { key:"businessRules",      label:"Business rules and validations",   desc:"Decision logic, validations, statuses, calculations" },
+  { key:"dependencies",       label:"Dependencies identified",          desc:"Upstream/downstream stories, integrations, data, teams" },
+  { key:"securityDataNfrs",   label:"Security, data, and NFRs",         desc:"Permissions, sharing, performance, compliance, audit" },
+  { key:"testingScenarios",   label:"Testing notes",                    desc:"Happy path and exception scenarios" },
 ];
 
 function loadPdfJs() {
@@ -450,11 +451,25 @@ const WATERFALL_PROMPT = `You are a delivery accelerator for IT and Salesforce i
 
 Rules: package.present max 3; incomplete+missing max 3 each with examples; improvedStories max 2 full rewrites; missingNFRs max 3 with usable statements; sfCapabilities max 3. Be specific to the artifact.`;
 
-const AGILE_PROMPT = `You are a sprint readiness coach for agile Salesforce implementation teams. Analyse each user story in the provided artifacts against a Definition of Ready (DoR) and return ONLY a single valid JSON object — no markdown, no preamble, no trailing text.
+function buildAgilePrompt() {
+  const skill = getSkillForMode("agile");
+  const skillBlock = skill?.md || "";
 
-{"sprintReadinessScore":<0-100, average across all stories>,"summary":"<2 sentences: overall sprint health and biggest risk>","stories":[{"id":"<Story N>","title":"<story title or first 8 words>","verdict":"<READY|REFINE|DEFER>","score":<0-100>,"dorChecks":{"userStoryFormat":{"pass":<true|false>,"note":"<10 words>","fix":"<sample corrected story format if failing, 30 words>"},"acceptanceCriteria":{"pass":<true|false>,"note":"<10 words>","fix":"<sample Given/When/Then AC if failing, 40 words>"},"sized":{"pass":<true|false>,"note":"<10 words>","fix":"<suggestion if failing, 20 words>"},"dependenciesClear":{"pass":<true|false>,"note":"<10 words>","fix":"<sample dependency note if failing, 25 words>"},"nfrConsidered":{"pass":<true|false>,"note":"<10 words>","fix":"<sample NFR requirement if failing, 30 words>"},"uiUxReady":{"pass":<true|false>,"note":"<10 words>","fix":"<sample UI description if failing, 25 words>"},"dataModelClear":{"pass":<true|false>,"note":"<10 words>","fix":"<sample data model note if failing, 25 words>"},"testable":{"pass":<true|false>,"note":"<10 words>","fix":"<sample testability note if failing, 20 words>"}},"topFix":"<single most important fix, 20 words>","improvedStory":"<full rewritten story with improved title, description, and 2 sample ACs — concrete and specific>"}],"sprintRecommendation":{"ready":["<story title>"],"refine":["<story title>"],"defer":["<story title>"],"advice":"<2 sentences on sprint planning recommendation>"}}
+  const outputBinding = `---
+OUTPUT BINDING (HandoffIQ)
 
-Rules: analyse every story found; verdict READY=6+ DoR checks pass; DEFER if core story format or AC missing; improvedStory must be fully written not truncated; be specific to the actual content.`;
+You operate as the skill above. First, produce the polished Markdown report exactly as the skill specifies (executive summary table, per-story sections with criterion table, deficient areas, BA-ready remediation wording, developer handoff risk statement).
+
+Then return ONLY a single valid JSON object — no preamble, no trailing text, no code fences — with the shape below. The JSON's "reportMarkdown" field MUST contain the full Markdown report verbatim as a JSON string.
+
+{"sprintReadinessScore":<0-100, average across all stories computed as round((rawScore/8)*100)>,"summary":"<2 sentences: overall sprint health and biggest recurring gap>","stories":[{"id":"<Story N>","title":"<story title or first 8 words>","verdict":"<READY|REFINE|DEFER>","score":<0-100 = round((rawScore/8)*100)>,"rawScore":<0-8 integer count of criteria passing>,"primaryReason":"<one sentence>","dorChecks":{"userStoryFormat":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<BA-ready rewrite if failing, 30 words>"},"acceptanceCriteria":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<sample Given/When/Then AC if failing, 40 words>"},"scopeDefined":{"pass":<true|false>,"note":"<10-15 words>","fix":"<scope clarification if failing, 25 words>"},"sfObjectsFieldsUi":{"pass":<true|false>,"note":"<10-15 words>","fix":"<missing Salesforce specifics to add, 30 words>"},"businessRules":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample business rule or validation, 30 words>"},"dependencies":{"pass":<true|false>,"note":"<10-15 words>","fix":"<dependency note if failing, 25 words>"},"securityDataNfrs":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample NFR/security/data requirement, 30 words>"},"testingScenarios":{"pass":<true|false>,"note":"<10-15 words>","fix":"<happy + exception test notes if failing, 25 words>"}},"topFix":"<single most important fix, 20 words>","improvedStory":"<full rewritten story with role/want/value + 2 sample ACs — concrete and specific, or null if already READY>"}],"sprintRecommendation":{"ready":["<story title>"],"refine":["<story title>"],"defer":["<story title>"],"advice":"<2 sentences on sprint planning recommendation>"},"reportMarkdown":"<the full Markdown report verbatim as a JSON string>"}
+
+Verdict mapping: rawScore 7-8 → READY; 5-6 → REFINE; 0-4 → DEFER.
+Override rule: if acceptanceCriteria.pass is false OR no clear business outcome is identifiable, cap the verdict at REFINE even if rawScore would otherwise yield READY.
+Rules: analyse every story found; be direct and evidence-based; do not inflate scores; do not invent missing details; improvedStory must be fully written; reportMarkdown must include all sections from the skill specification.`;
+
+  return `${skillBlock}\n\n${outputBinding}`;
+}
 
 /* ══ MAIN APP ══ */
 export default function HandoffRadar() {
@@ -554,13 +569,20 @@ export default function HandoffRadar() {
         },
         body:JSON.stringify({
           model:"claude-sonnet-4-6", max_tokens:8000,
-          system: mode==="agile" ? AGILE_PROMPT : WATERFALL_PROMPT,
+          system: mode==="agile" ? buildAgilePrompt() : WATERFALL_PROMPT,
           messages:[{role:"user",content:`Handoff type: ${typeLabel}${agileContext}\n\nArtifacts:\n${combined}`}],
         }),
       });
       const data = await res.json();
       if(data.error) throw new Error(data.error.message);
       const parsed = safeParseJson(data.content.map(c=>c.text||"").join(""));
+      if (mode === "agile" && Array.isArray(parsed?.stories)) {
+        parsed.stories.forEach(s => {
+          if (s?.dorChecks?.acceptanceCriteria?.pass === false && s.verdict === "READY") {
+            s.verdict = "REFINE";
+          }
+        });
+      }
       setResults(parsed);
       setStep("results");
       const types = mode==="agile" ? AGILE_TYPES : WATERFALL_TYPES;
@@ -1133,6 +1155,46 @@ export default function HandoffRadar() {
             {/* ══════════════════ AGILE RESULTS ══════════════════ */}
             {mode==="agile" && (
               <>
+                {results.reportMarkdown && (
+                  <div style={{
+                    ...card, marginBottom:20,
+                    display:"flex", alignItems:"center", justifyContent:"space-between",
+                    flexWrap:"wrap", gap:12,
+                  }}>
+                    <div>
+                      <label style={sldsLabel}>Readiness report</label>
+                      <p style={{ fontSize:12, color:C.textMuted, marginTop:4, lineHeight:1.5 }}>
+                        Polished Markdown report — share with your BA or paste into Confluence / Jira.
+                      </p>
+                      <p style={{ fontSize:11, color:C.textSubtle, marginTop:4 }}>
+                        Sprint readiness rubric: <em>User Story Readiness Evaluator</em> by Kanika Singla
+                      </p>
+                    </div>
+                    <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+                      <CopyButton text={results.reportMarkdown}/>
+                      <button onClick={() => {
+                        const blob = new Blob([results.reportMarkdown], { type:"text/markdown" });
+                        const url  = URL.createObjectURL(blob);
+                        const a    = document.createElement("a");
+                        a.href = url;
+                        a.download = `handoffiq-readiness-${new Date().toISOString().slice(0,10)}.md`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }} style={{
+                        background:"none",
+                        border:`1px solid ${C.border}`,
+                        borderRadius:6, padding:"3px 10px",
+                        fontSize:11, fontWeight:600, cursor:"pointer",
+                        color:C.textMuted, fontFamily:"inherit",
+                        display:"inline-flex", alignItems:"center", gap:4,
+                        transition:"all 0.15s",
+                      }}>Download .md</button>
+                    </div>
+                  </div>
+                )}
+
                 {results.sprintRecommendation?.advice && (
                   <div style={{
                     ...card, marginBottom:20,

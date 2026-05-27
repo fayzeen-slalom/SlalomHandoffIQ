@@ -568,7 +568,7 @@ export default function HandoffRadar() {
           "x-api-key":apiKey,
         },
         body:JSON.stringify({
-          model:"claude-sonnet-4-6", max_tokens:16000,
+          model:"claude-sonnet-4-6", max_tokens:64000,
           system: mode==="agile" ? buildAgilePrompt() : WATERFALL_PROMPT,
           messages:[{role:"user",content:`Handoff type: ${typeLabel}${agileContext}\n\nArtifacts:\n${combined}`}],
         }),

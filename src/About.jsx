@@ -535,7 +535,12 @@ export default function About() {
                 <div style={{ fontSize:12, color:C.textMuted }}>Full set of supporting artifacts produced during the hackathon</div>
               </div>
             </div>
-            <a href="#" className="repo-btn">Open repository →</a>
+            <a
+              href="https://twodegrees1-my.sharepoint.com/personal/arpit_garg_slalom_com/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Farpit%5Fgarg%5Fslalom%5Fcom%2FDocuments%2FHandoffIQ&viewid=c5d39240%2D539e%2D4641%2D8ce8%2Deda47559a0a5&ct=1779914509841&or=Teams%2DHL"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="repo-btn"
+            >Open repository →</a>
           </div>
 
           <div className="artifact-grid" style={{ display:"grid", gridTemplateColumns:"repeat(2, 1fr)", gap:10 }}>

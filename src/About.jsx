@@ -156,7 +156,9 @@ export default function About() {
             <path d="M 41 4 A 36 36 0 1 1 35 4.5" fill="none" stroke="#ffffff" strokeWidth="8" strokeLinecap="round"/>
             <path d="M 22 41 L 33 52 L 58 28" fill="none" stroke="#c4a8f0" strokeWidth="7.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2 }}>Slalom HandoffIQ</span>
+          <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2 }}>
+            Slalom Handoff<span style={{ color:"#c4a8f0", fontWeight:800 }}>IQ</span>
+          </span>
           <span style={{ color:"rgba(255,255,255,0.35)", fontSize:16, lineHeight:1, marginTop:1 }}>›</span>
           <span style={{ fontWeight:600, fontSize:15, color:"#fff", letterSpacing:0.1 }}>About</span>
         </div>
@@ -185,7 +187,7 @@ export default function About() {
           </svg>
         </div>
         <h1 style={{ margin:"0 0 12px", fontSize:32, fontWeight:800, letterSpacing:-0.5 }}>
-          Slalom HandoffIQ
+          Slalom Handoff<span style={{ color:"#c4a8f0" }}>IQ</span>
         </h1>
         <p style={{ margin:"0 auto 24px", maxWidth:560, fontSize:16, lineHeight:1.6, opacity:0.9 }}>
           An AI-powered delivery readiness analyser for Salesforce and IT implementation teams.

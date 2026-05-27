@@ -458,15 +458,21 @@ function buildAgilePrompt() {
   const outputBinding = `---
 OUTPUT BINDING (HandoffIQ)
 
-You operate as the skill above. First, produce the polished Markdown report exactly as the skill specifies (executive summary table, per-story sections with criterion table, deficient areas, BA-ready remediation wording, developer handoff risk statement).
+You operate as the skill above. Produce your response in EXACTLY TWO PARTS, in this order.
 
-Then return ONLY a single valid JSON object — no preamble, no trailing text, no code fences — with the shape below. The JSON's "reportMarkdown" field MUST contain the full Markdown report verbatim as a JSON string.
+PART 1 — A single valid JSON object. No preamble, no code fences, no commentary. Just the JSON object, matching this shape exactly. The JSON does NOT contain a reportMarkdown field.
 
-{"sprintReadinessScore":<0-100, average across all stories computed as round((rawScore/8)*100)>,"summary":"<2 sentences: overall sprint health and biggest recurring gap>","stories":[{"id":"<Story N>","title":"<story title or first 8 words>","verdict":"<READY|REFINE|DEFER>","score":<0-100 = round((rawScore/8)*100)>,"rawScore":<0-8 integer count of criteria passing>,"primaryReason":"<one sentence>","dorChecks":{"userStoryFormat":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<BA-ready rewrite if failing, 30 words>"},"acceptanceCriteria":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<sample Given/When/Then AC if failing, 40 words>"},"scopeDefined":{"pass":<true|false>,"note":"<10-15 words>","fix":"<scope clarification if failing, 25 words>"},"sfObjectsFieldsUi":{"pass":<true|false>,"note":"<10-15 words>","fix":"<missing Salesforce specifics to add, 30 words>"},"businessRules":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample business rule or validation, 30 words>"},"dependencies":{"pass":<true|false>,"note":"<10-15 words>","fix":"<dependency note if failing, 25 words>"},"securityDataNfrs":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample NFR/security/data requirement, 30 words>"},"testingScenarios":{"pass":<true|false>,"note":"<10-15 words>","fix":"<happy + exception test notes if failing, 25 words>"}},"topFix":"<single most important fix, 20 words>","improvedStory":"<full rewritten story with role/want/value + 2 sample ACs — concrete and specific, or null if already READY>"}],"sprintRecommendation":{"ready":["<story title>"],"refine":["<story title>"],"defer":["<story title>"],"advice":"<2 sentences on sprint planning recommendation>"},"reportMarkdown":"<the full Markdown report verbatim as a JSON string>"}
+{"sprintReadinessScore":<0-100, average across all stories computed as round((rawScore/8)*100)>,"summary":"<2 sentences: overall sprint health and biggest recurring gap>","stories":[{"id":"<Story N>","title":"<story title or first 8 words>","verdict":"<READY|REFINE|DEFER>","score":<0-100 = round((rawScore/8)*100)>,"rawScore":<0-8 integer count of criteria passing>,"primaryReason":"<one sentence>","dorChecks":{"userStoryFormat":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<BA-ready rewrite if failing, 30 words>"},"acceptanceCriteria":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<sample Given/When/Then AC if failing, 40 words>"},"scopeDefined":{"pass":<true|false>,"note":"<10-15 words>","fix":"<scope clarification if failing, 25 words>"},"sfObjectsFieldsUi":{"pass":<true|false>,"note":"<10-15 words>","fix":"<missing Salesforce specifics to add, 30 words>"},"businessRules":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample business rule or validation, 30 words>"},"dependencies":{"pass":<true|false>,"note":"<10-15 words>","fix":"<dependency note if failing, 25 words>"},"securityDataNfrs":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample NFR/security/data requirement, 30 words>"},"testingScenarios":{"pass":<true|false>,"note":"<10-15 words>","fix":"<happy + exception test notes if failing, 25 words>"}},"topFix":"<single most important fix, 20 words>","improvedStory":"<full rewritten story with role/want/value + 2 sample ACs — concrete and specific, or null if already READY>"}],"sprintRecommendation":{"ready":["<story title>"],"refine":["<story title>"],"defer":["<story title>"],"advice":"<2 sentences on sprint planning recommendation>"}}
+
+PART 2 — On a NEW line immediately after the closing brace of the JSON, write this exact sentinel on its own line:
+
+===MARKDOWN REPORT===
+
+PART 3 — Below the sentinel, write the polished Markdown report as the skill specifies (executive summary table, per-story sections with criterion table, deficient areas, BA-ready remediation wording, developer handoff risk statement). Write it as PLAIN MARKDOWN. Do NOT JSON-escape it. Newlines, quotes, pipes, and triple-backtick code fences are all fine — they are raw Markdown, not inside a JSON string.
 
 Verdict mapping: rawScore 7-8 → READY; 5-6 → REFINE; 0-4 → DEFER.
 Override rule: if acceptanceCriteria.pass is false OR no clear business outcome is identifiable, cap the verdict at REFINE even if rawScore would otherwise yield READY.
-Rules: analyse every story found; be direct and evidence-based; do not inflate scores; do not invent missing details; improvedStory must be fully written; reportMarkdown must include all sections from the skill specification.`;
+Rules: analyse every story found; be direct and evidence-based; do not inflate scores; do not invent missing details; improvedStory must be fully written; the Markdown report must include all sections from the skill specification.`;
 
   return `${skillBlock}\n\n${outputBinding}`;
 }
@@ -536,17 +542,29 @@ export default function HandoffRadar() {
   };
 
   const safeParseJson = (text) => {
-    let s = text.replace(/```json|```/g,"").trim();
-    try { return JSON.parse(s); } catch { /* not valid JSON, continue */ }
+    let s = (text || "").trim();
+    if (s.startsWith("```json")) s = s.slice(7).trim();
+    else if (s.startsWith("```"))  s = s.slice(3).trim();
+    if (s.endsWith("```"))         s = s.slice(0, -3).trim();
+    const first = s.indexOf("{");
+    const last  = s.lastIndexOf("}");
+    if (first >= 0 && last > first) s = s.slice(first, last + 1);
+
+    try { return JSON.parse(s); } catch { /* try recovery */ }
     try {
-      s = s.replace(/,(\s*[\]}])/g,"$1");
-      s = s.replace(/,\s*"[^"]*"\s*:\s*$/,"");
-      if((s.match(/(?<!\\)"/g)||[]).length%2!==0) s+='"';
-      const oa=(s.match(/\[/g)||[]).length-(s.match(/\]/g)||[]).length;
-      const oo=(s.match(/\{/g)||[]).length-(s.match(/\}/g)||[]).length;
-      s+="]".repeat(Math.max(0,oa))+"}".repeat(Math.max(0,oo));
-      return JSON.parse(s);
-    } catch { throw new Error("Response too large to parse — try a shorter document."); }
+      let r = s.replace(/,(\s*[\]}])/g,"$1");
+      r = r.replace(/,\s*"[^"]*"\s*:\s*$/,"");
+      if((r.match(/(?<!\\)"/g)||[]).length%2!==0) r+='"';
+      const oa=(r.match(/\[/g)||[]).length-(r.match(/\]/g)||[]).length;
+      const oo=(r.match(/\{/g)||[]).length-(r.match(/\}/g)||[]).length;
+      r+="]".repeat(Math.max(0,oa))+"}".repeat(Math.max(0,oo));
+      return JSON.parse(r);
+    } catch (e) {
+      console.error("[HandoffIQ] JSON parse failed:", e.message);
+      console.error("[HandoffIQ] Response head (first 400 chars):", s.slice(0, 400));
+      console.error("[HandoffIQ] Response tail (last 400 chars):", s.slice(-400));
+      throw new Error(`Couldn't parse model response (${e.message}). Open the browser console for the response excerpt.`);
+    }
   };
 
   const analyze = async () => {
@@ -575,13 +593,22 @@ export default function HandoffRadar() {
       });
       const data = await res.json();
       if(data.error) throw new Error(data.error.message);
-      const parsed = safeParseJson(data.content.map(c=>c.text||"").join(""));
-      if (mode === "agile" && Array.isArray(parsed?.stories)) {
-        parsed.stories.forEach(s => {
-          if (s?.dorChecks?.acceptanceCriteria?.pass === false && s.verdict === "READY") {
-            s.verdict = "REFINE";
-          }
-        });
+      const raw = data.content.map(c=>c.text||"").join("");
+      const SENTINEL = "===MARKDOWN REPORT===";
+      const sentinelIdx = raw.indexOf(SENTINEL);
+      const jsonPart = sentinelIdx >= 0 ? raw.slice(0, sentinelIdx) : raw;
+      const mdPart   = sentinelIdx >= 0 ? raw.slice(sentinelIdx + SENTINEL.length).trim() : "";
+
+      const parsed = safeParseJson(jsonPart);
+      if (mode === "agile") {
+        if (mdPart) parsed.reportMarkdown = mdPart;
+        if (Array.isArray(parsed?.stories)) {
+          parsed.stories.forEach(s => {
+            if (s?.dorChecks?.acceptanceCriteria?.pass === false && s.verdict === "READY") {
+              s.verdict = "REFINE";
+            }
+          });
+        }
       }
       setResults(parsed);
       setStep("results");

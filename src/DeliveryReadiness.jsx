@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import mammoth from "mammoth";
+import * as XLSX from "xlsx";
 import { getSkillForMode } from "./skills";
 
 const WATERFALL_TYPES = [
@@ -31,26 +32,35 @@ const AGILE_TYPES = [
     extra:"Check new schema changes are documented, calculated fields are explained, and the analytics team has record access and sharing model context." },
 ];
 
-/* ── SLDS 2 / Cosmos palette ── */
+/* ── Logo-derived light palette ── */
 const C = {
   // Surfaces
-  pageBg:        "#f3f2f2",     // Cosmos warm-grey page
+  pageBg:        "#faf8ff",     // subtle lavender-tinted off-white
   surface:       "#ffffff",     // card/panel
-  surfaceAlt:    "#fafaf9",     // subtle alt (inputs, code blocks)
-  border:        "#e5e5e5",     // subtle divider
-  borderStrong:  "#c9c7c5",     // standard border / input border
+  surfaceAlt:    "#f5efff",     // inputs, code blocks (faint purple)
+  border:        "#ece4fb",     // subtle divider
+  borderStrong:  "#d6c7ee",     // input border
 
   // Text
-  text:          "#181818",     // primary
-  textMuted:     "#706e6b",     // secondary / labels
-  textSubtle:    "#a8a5a0",     // tertiary / disabled
+  text:          "#1a1130",     // purple-charcoal
+  textMuted:     "#5e5773",     // secondary
+  textSubtle:    "#a59cb8",     // tertiary
 
-  // Brand (Salesforce blue)
-  brand:         "#0176d3",
-  brandDark:     "#014486",
-  brandBg:       "#eaf5fe",
+  // Primary (logo deep purple)
+  primary:       "#7e14ff",
+  primaryHover:  "#6b00f0",
+  primaryBg:     "#ede6ff",
 
-  // AI accent
+  // Secondary accent (logo blue highlight)
+  accent:        "#47bfff",
+  accentBg:      "#e0f3ff",
+
+  // Aliases for existing code references
+  brand:         "#7e14ff",
+  brandDark:     "#6b00f0",
+  brandBg:       "#ede6ff",
+
+  // AI accent (keep existing)
   ai:      "#5a1ba9",
   aiBg:    "#e9d9ff",
 
@@ -62,18 +72,26 @@ const C = {
   error:         "#ba0517",
   errorBg:       "#fddde3",
 
-  // Mode accents — Agile=brand blue, Gate=warning amber
-  agile:         "#0176d3",
-  agileBg:       "#eaf5fe",
-  gate:          "#7e4800",
-  gateBg:        "#fef0e1",
+  // Mode accents — Agile=primary purple, Gate=accent blue
+  agile:         "#7e14ff",
+  agileBg:       "#ede6ff",
+  gate:          "#47bfff",
+  gateBg:        "#e0f3ff",
 
-  // Shadows
-  shadow1:       "0 2px 4px 0 rgba(0,0,0,0.08)",
-  shadow2:       "0 4px 8px 0 rgba(0,0,0,0.12)",
+  // Shadows (purple-tinted)
+  shadow1:       "0 2px 4px 0 rgba(126,20,255,0.06)",
+  shadow2:       "0 8px 24px rgba(126,20,255,0.08)",
+  shadowLift:    "0 12px 32px rgba(126,20,255,0.14)",
 };
 
-const FONT = "'Salesforce Sans','Helvetica Neue',Arial,sans-serif";
+const FONT = "'Manrope','Salesforce Sans','Helvetica Neue',Arial,sans-serif";
+const FONT_MONO = "'JetBrains Mono','SF Mono',Consolas,monospace";
+
+const MODELS = [
+  { id:"claude-sonnet-4-6",         label:"Sonnet 4.6",  sub:"Recommended"  },
+  { id:"claude-opus-4-7",           label:"Opus 4.7",    sub:"Most capable" },
+  { id:"claude-haiku-4-5-20251001", label:"Haiku 4.5",   sub:"Fastest"      },
+];
 
 const QUALITY_DIMS = [
   { key:"clarity",        label:"Clarity",               icon:"🔍" },
@@ -187,6 +205,114 @@ function ModeToggle({ mode, onChange }) {
   );
 }
 
+/* ── Startup / API key modal ── */
+function StartupModal({ onSave, onCancel, hasExistingKey }) {
+  const [keyInput, setKeyInput] = useState("");
+  const [modelInput, setModelInput] = useState(
+    () => localStorage.getItem("handoffiq_model") || "claude-sonnet-4-6"
+  );
+  return (
+    <div style={{
+      position:"fixed", inset:0, zIndex:100,
+      background:"rgba(250,248,255,0.88)",
+      backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
+      display:"flex", alignItems:"center", justifyContent:"center", padding:24,
+    }}>
+      <div style={{
+        background:"#fff",
+        border:`1px solid ${C.border}`,
+        borderRadius:20,
+        padding:"36px 40px", maxWidth:520, width:"100%",
+        boxShadow:`0 24px 80px rgba(126,20,255,0.18), 0 0 0 1px ${C.border}`,
+        animation:"fadeUp 0.3s ease forwards",
+        fontFamily:FONT,
+      }}>
+        <div style={{
+          display:"inline-flex", alignItems:"center", gap:8,
+          padding:"5px 14px", background:C.primaryBg,
+          border:`1px solid ${C.primary}44`,
+          borderRadius:9999, fontSize:11, fontWeight:700,
+          letterSpacing:"0.18em", color:C.primary,
+          textTransform:"uppercase", marginBottom:18,
+        }}>✦ Connect</div>
+        <h2 style={{
+          fontSize:26, fontWeight:800, color:C.text,
+          margin:"0 0 8px", letterSpacing:"-0.02em",
+        }}>
+          Connect an Anthropic API key
+        </h2>
+        <p style={{ fontSize:14, color:C.textMuted, lineHeight:1.6, marginBottom:20 }}>
+          Paste your API key to enable AI-powered readiness analysis. Your key stays in your browser only.
+        </p>
+        <input
+          type="password"
+          value={keyInput}
+          onChange={e=>setKeyInput(e.target.value)}
+          onKeyDown={e=>{ if(e.key==="Enter" && keyInput.trim()) onSave(keyInput.trim(), modelInput); }}
+          placeholder="sk-ant-..."
+          autoComplete="off"
+          style={{
+            width:"100%", padding:"13px 16px",
+            background:C.surfaceAlt, border:`1px solid ${C.borderStrong}`,
+            borderRadius:8, color:C.text,
+            fontFamily:FONT_MONO, fontSize:13, outline:"none",
+            marginBottom:12, boxSizing:"border-box",
+          }}
+        />
+        <select
+          value={modelInput}
+          onChange={e=>setModelInput(e.target.value)}
+          style={{
+            width:"100%", padding:"12px 14px",
+            background:C.surfaceAlt, border:`1px solid ${C.borderStrong}`,
+            borderRadius:8, color:C.text,
+            fontFamily:FONT, fontSize:13, outline:"none",
+            cursor:"pointer", marginBottom:20, boxSizing:"border-box",
+          }}
+        >
+          {MODELS.map(m => (
+            <option key={m.id} value={m.id}>{m.label} — {m.sub}</option>
+          ))}
+        </select>
+        <div style={{
+          padding:"12px 16px", marginBottom:24,
+          background:"rgba(186,5,23,0.04)",
+          borderLeft:`2px solid ${C.error}55`,
+          borderRadius:"0 8px 8px 0",
+          fontSize:12, color:C.textMuted, lineHeight:1.6,
+        }}>
+          Your key stays in your browser for this session only. It is sent directly to api.anthropic.com from your machine, never to Slalom or any third party.
+        </div>
+        <div style={{ display:"flex", gap:12 }}>
+          {hasExistingKey && (
+            <button onClick={onCancel} style={{
+              flex:1, padding:"11px 22px",
+              background:"transparent", color:C.textMuted,
+              border:`1px solid ${C.border}`,
+              borderRadius:9999, fontSize:13, fontWeight:600,
+              cursor:"pointer", fontFamily:FONT, transition:"all 0.15s",
+            }}>Cancel</button>
+          )}
+          <button
+            onClick={() => { if(keyInput.trim()) onSave(keyInput.trim(), modelInput); }}
+            disabled={!keyInput.trim()}
+            style={{
+              flex:1, padding:"11px 22px",
+              background: keyInput.trim() ? C.primary : C.border,
+              color: keyInput.trim() ? "#fff" : C.textSubtle,
+              border:"none", borderRadius:9999,
+              fontSize:13, fontWeight:700,
+              cursor: keyInput.trim() ? "pointer" : "not-allowed",
+              fontFamily:FONT, transition:"all 0.15s",
+              letterSpacing:"0.02em",
+            }}
+          >Continue →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Score ring ── */
 function ScoreRing({ score, color, label, size=160 }) {
   const r = (size/2)-10, circ = 2*Math.PI*r;
@@ -200,7 +326,7 @@ function ScoreRing({ score, color, label, size=160 }) {
             style={{ transition:"stroke-dashoffset 1.4s cubic-bezier(0.4,0,0.2,1)" }}/>
         </svg>
         <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3 }}>
-          <span style={{ fontSize:size*0.24, fontWeight:700, color, lineHeight:1 }}>{score}</span>
+          <span style={{ fontSize:size*0.24, fontWeight:800, color, lineHeight:1, fontFamily:FONT_MONO }}>{score}</span>
           <span style={{ fontSize:size*0.07, color:C.textMuted, letterSpacing:1.5, textTransform:"uppercase", fontWeight:700 }}>out of 100</span>
         </div>
       </div>
@@ -266,7 +392,7 @@ function DorRow({ criterion, data }) {
 }
 
 /* ── Section divider ── */
-function Divider({ step, label, color=C.brand }) {
+function Divider({ step, label, color=C.primary }) {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:14, margin:"28px 0 18px" }}>
       <div style={{
@@ -458,15 +584,21 @@ function buildAgilePrompt() {
   const outputBinding = `---
 OUTPUT BINDING (HandoffIQ)
 
-You operate as the skill above. First, produce the polished Markdown report exactly as the skill specifies (executive summary table, per-story sections with criterion table, deficient areas, BA-ready remediation wording, developer handoff risk statement).
+You operate as the skill above. Produce your response in EXACTLY TWO PARTS, in this order.
 
-Then return ONLY a single valid JSON object — no preamble, no trailing text, no code fences — with the shape below. The JSON's "reportMarkdown" field MUST contain the full Markdown report verbatim as a JSON string.
+PART 1 — A single valid JSON object. No preamble, no code fences, no commentary. Just the JSON object, matching this shape exactly. The JSON does NOT contain a reportMarkdown field.
 
-{"sprintReadinessScore":<0-100, average across all stories computed as round((rawScore/8)*100)>,"summary":"<2 sentences: overall sprint health and biggest recurring gap>","stories":[{"id":"<Story N>","title":"<story title or first 8 words>","verdict":"<READY|REFINE|DEFER>","score":<0-100 = round((rawScore/8)*100)>,"rawScore":<0-8 integer count of criteria passing>,"primaryReason":"<one sentence>","dorChecks":{"userStoryFormat":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<BA-ready rewrite if failing, 30 words>"},"acceptanceCriteria":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<sample Given/When/Then AC if failing, 40 words>"},"scopeDefined":{"pass":<true|false>,"note":"<10-15 words>","fix":"<scope clarification if failing, 25 words>"},"sfObjectsFieldsUi":{"pass":<true|false>,"note":"<10-15 words>","fix":"<missing Salesforce specifics to add, 30 words>"},"businessRules":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample business rule or validation, 30 words>"},"dependencies":{"pass":<true|false>,"note":"<10-15 words>","fix":"<dependency note if failing, 25 words>"},"securityDataNfrs":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample NFR/security/data requirement, 30 words>"},"testingScenarios":{"pass":<true|false>,"note":"<10-15 words>","fix":"<happy + exception test notes if failing, 25 words>"}},"topFix":"<single most important fix, 20 words>","improvedStory":"<full rewritten story with role/want/value + 2 sample ACs — concrete and specific, or null if already READY>"}],"sprintRecommendation":{"ready":["<story title>"],"refine":["<story title>"],"defer":["<story title>"],"advice":"<2 sentences on sprint planning recommendation>"},"reportMarkdown":"<the full Markdown report verbatim as a JSON string>"}
+{"sprintReadinessScore":<0-100, average across all stories computed as round((rawScore/8)*100)>,"summary":"<2 sentences: overall sprint health and biggest recurring gap>","stories":[{"id":"<Story N>","title":"<story title or first 8 words>","verdict":"<READY|REFINE|DEFER>","score":<0-100 = round((rawScore/8)*100)>,"rawScore":<0-8 integer count of criteria passing>,"primaryReason":"<one sentence>","dorChecks":{"userStoryFormat":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<BA-ready rewrite if failing, 30 words>"},"acceptanceCriteria":{"pass":<true|false>,"note":"<10-15 words of evidence>","fix":"<sample Given/When/Then AC if failing, 40 words>"},"scopeDefined":{"pass":<true|false>,"note":"<10-15 words>","fix":"<scope clarification if failing, 25 words>"},"sfObjectsFieldsUi":{"pass":<true|false>,"note":"<10-15 words>","fix":"<missing Salesforce specifics to add, 30 words>"},"businessRules":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample business rule or validation, 30 words>"},"dependencies":{"pass":<true|false>,"note":"<10-15 words>","fix":"<dependency note if failing, 25 words>"},"securityDataNfrs":{"pass":<true|false>,"note":"<10-15 words>","fix":"<sample NFR/security/data requirement, 30 words>"},"testingScenarios":{"pass":<true|false>,"note":"<10-15 words>","fix":"<happy + exception test notes if failing, 25 words>"}},"topFix":"<single most important fix, 20 words>","improvedStory":"<full rewritten story with role/want/value + 2 sample ACs — concrete and specific, or null if already READY>"}],"sprintRecommendation":{"ready":["<story title>"],"refine":["<story title>"],"defer":["<story title>"],"advice":"<2 sentences on sprint planning recommendation>"}}
+
+PART 2 — On a NEW line immediately after the closing brace of the JSON, write this exact sentinel on its own line:
+
+===MARKDOWN REPORT===
+
+PART 3 — Below the sentinel, write the polished Markdown report as the skill specifies (executive summary table, per-story sections with criterion table, deficient areas, BA-ready remediation wording, developer handoff risk statement). Write it as PLAIN MARKDOWN. Do NOT JSON-escape it. Newlines, quotes, pipes, and triple-backtick code fences are all fine — they are raw Markdown, not inside a JSON string.
 
 Verdict mapping: rawScore 7-8 → READY; 5-6 → REFINE; 0-4 → DEFER.
 Override rule: if acceptanceCriteria.pass is false OR no clear business outcome is identifiable, cap the verdict at REFINE even if rawScore would otherwise yield READY.
-Rules: analyse every story found; be direct and evidence-based; do not inflate scores; do not invent missing details; improvedStory must be fully written; reportMarkdown must include all sections from the skill specification.`;
+Rules: analyse every story found; be direct and evidence-based; do not inflate scores; do not invent missing details; improvedStory must be fully written; the Markdown report must include all sections from the skill specification.`;
 
   return `${skillBlock}\n\n${outputBinding}`;
 }
@@ -486,10 +618,9 @@ export default function HandoffRadar() {
   const [expandedStory, setExpandedStory] = useState(null);
   const [expandAll, setExpandAll]         = useState(false);
   const fileRef = useRef();
-  const [apiKey, setApiKey]               = useState(()=>localStorage.getItem("handoffiq_api_key")||"");
-  const [showKeyBanner, setShowKeyBanner] = useState(false);
-  const [keyInput, setKeyInput]           = useState("");
-  const [showKeyValue, setShowKeyValue]   = useState(false);
+  const [apiKey, setApiKey]                   = useState(()=>localStorage.getItem("handoffiq_api_key")||"");
+  const [selectedModel, setSelectedModel]     = useState(()=>localStorage.getItem("handoffiq_model")||"claude-sonnet-4-6");
+  const [showStartupModal, setShowStartupModal] = useState(()=>!localStorage.getItem("handoffiq_api_key"));
 
   const [savedAnalyses, setSavedAnalyses] = useState(()=>{
     try { return JSON.parse(localStorage.getItem("handoffiq_saved_analyses")||"[]"); } catch{ return []; }
@@ -504,6 +635,14 @@ export default function HandoffRadar() {
     const ext = file.name.split(".").pop().toLowerCase();
     if (["txt","md"].includes(ext)) return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsText(file); });
     if (ext==="docx") { const buf=await file.arrayBuffer(); return (await mammoth.extractRawText({arrayBuffer:buf})).value; }
+    if (["csv","xlsx"].includes(ext)) {
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(buf,{type:"array"});
+      return wb.SheetNames.map(name=>{
+        const rows=XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+        return wb.SheetNames.length>1 ? `--- Sheet: ${name} ---\n${rows}` : rows;
+      }).join("\n\n");
+    }
     if (ext==="pdf") {
       let lib; try { lib=await loadPdfJs(); } catch { throw new Error("PDF reader unavailable — use Paste text."); }
       const pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise;
@@ -528,30 +667,41 @@ export default function HandoffRadar() {
     setPasteText(""); setShowPaste(false);
   };
 
-  const saveKey = () => {
-    const k = keyInput.trim();
-    if (!k) return;
+  const saveKeyAndModel = (k, m) => {
     localStorage.setItem("handoffiq_api_key", k);
-    setApiKey(k); setKeyInput(""); setShowKeyBanner(false);
+    localStorage.setItem("handoffiq_model", m);
+    setApiKey(k); setSelectedModel(m); setShowStartupModal(false);
   };
 
   const safeParseJson = (text) => {
-    let s = text.replace(/```json|```/g,"").trim();
-    try { return JSON.parse(s); } catch { /* not valid JSON, continue */ }
+    let s = (text || "").trim();
+    if (s.startsWith("```json")) s = s.slice(7).trim();
+    else if (s.startsWith("```"))  s = s.slice(3).trim();
+    if (s.endsWith("```"))         s = s.slice(0, -3).trim();
+    const first = s.indexOf("{");
+    const last  = s.lastIndexOf("}");
+    if (first >= 0 && last > first) s = s.slice(first, last + 1);
+
+    try { return JSON.parse(s); } catch { /* try recovery */ }
     try {
-      s = s.replace(/,(\s*[\]}])/g,"$1");
-      s = s.replace(/,\s*"[^"]*"\s*:\s*$/,"");
-      if((s.match(/(?<!\\)"/g)||[]).length%2!==0) s+='"';
-      const oa=(s.match(/\[/g)||[]).length-(s.match(/\]/g)||[]).length;
-      const oo=(s.match(/\{/g)||[]).length-(s.match(/\}/g)||[]).length;
-      s+="]".repeat(Math.max(0,oa))+"}".repeat(Math.max(0,oo));
-      return JSON.parse(s);
-    } catch { throw new Error("Response too large to parse — try a shorter document."); }
+      let r = s.replace(/,(\s*[\]}])/g,"$1");
+      r = r.replace(/,\s*"[^"]*"\s*:\s*$/,"");
+      if((r.match(/(?<!\\)"/g)||[]).length%2!==0) r+='"';
+      const oa=(r.match(/\[/g)||[]).length-(r.match(/\]/g)||[]).length;
+      const oo=(r.match(/\{/g)||[]).length-(r.match(/\}/g)||[]).length;
+      r+="]".repeat(Math.max(0,oa))+"}".repeat(Math.max(0,oo));
+      return JSON.parse(r);
+    } catch (e) {
+      console.error("[HandoffIQ] JSON parse failed:", e.message);
+      console.error("[HandoffIQ] Response head (first 400 chars):", s.slice(0, 400));
+      console.error("[HandoffIQ] Response tail (last 400 chars):", s.slice(-400));
+      throw new Error(`Couldn't parse model response (${e.message}). Open the browser console for the response excerpt.`);
+    }
   };
 
   const analyze = async () => {
     if (!files.length) { setError("Upload at least one artifact first."); return; }
-    if (!apiKey) { setError("Please set your Anthropic API key first."); setShowKeyBanner(true); return; }
+    if (!apiKey) { setError("Please set your Anthropic API key first."); setShowStartupModal(true); return; }
     setAnalyzing(true); setError(""); setExpandedStory(null);
     const combined = files.map(f=>`=== ${f.name} ===\n${f.content}`).join("\n\n");
     const types = mode==="agile" ? AGILE_TYPES : WATERFALL_TYPES;
@@ -568,20 +718,29 @@ export default function HandoffRadar() {
           "x-api-key":apiKey,
         },
         body:JSON.stringify({
-          model:"claude-sonnet-4-6", max_tokens:8000,
+          model:selectedModel, max_tokens:64000,
           system: mode==="agile" ? buildAgilePrompt() : WATERFALL_PROMPT,
           messages:[{role:"user",content:`Handoff type: ${typeLabel}${agileContext}\n\nArtifacts:\n${combined}`}],
         }),
       });
       const data = await res.json();
       if(data.error) throw new Error(data.error.message);
-      const parsed = safeParseJson(data.content.map(c=>c.text||"").join(""));
-      if (mode === "agile" && Array.isArray(parsed?.stories)) {
-        parsed.stories.forEach(s => {
-          if (s?.dorChecks?.acceptanceCriteria?.pass === false && s.verdict === "READY") {
-            s.verdict = "REFINE";
-          }
-        });
+      const raw = data.content.map(c=>c.text||"").join("");
+      const SENTINEL = "===MARKDOWN REPORT===";
+      const sentinelIdx = raw.indexOf(SENTINEL);
+      const jsonPart = sentinelIdx >= 0 ? raw.slice(0, sentinelIdx) : raw;
+      const mdPart   = sentinelIdx >= 0 ? raw.slice(sentinelIdx + SENTINEL.length).trim() : "";
+
+      const parsed = safeParseJson(jsonPart);
+      if (mode === "agile") {
+        if (mdPart) parsed.reportMarkdown = mdPart;
+        if (Array.isArray(parsed?.stories)) {
+          parsed.stories.forEach(s => {
+            if (s?.dorChecks?.acceptanceCriteria?.pass === false && s.verdict === "READY") {
+              s.verdict = "REFINE";
+            }
+          });
+        }
       }
       setResults(parsed);
       setStep("results");
@@ -629,22 +788,23 @@ export default function HandoffRadar() {
     padding:"20px 22px",
   };
 
-  // Primary button — Cosmos pill (16px) per SLDS 2
+  // Primary button — full pill with purple glow
   const btn = {
-    background:C.brand, color:"#fff", border:"none",
-    borderRadius:16, padding:"9px 22px",
-    fontSize:13, fontWeight:600, cursor:"pointer",
-    fontFamily:"inherit",
-    boxShadow:"0 1px 2px 0 rgba(0,0,0,0.08)",
+    background:C.primary, color:"#fff", border:"none",
+    borderRadius:9999, padding:"10px 24px",
+    fontSize:13, fontWeight:700, cursor:"pointer",
+    fontFamily:"inherit", letterSpacing:"0.01em",
+    boxShadow:"0 4px 12px rgba(126,20,255,0.22)",
+    transition:"all 0.15s",
   };
 
-  // Neutral button — Cosmos pill with border
+  // Neutral button — full pill with border
   const btnSec = {
-    background:C.surface, color:C.brand,
-    border:`1px solid ${C.borderStrong}`,
-    borderRadius:16, padding:"9px 22px",
+    background:C.surface, color:C.primary,
+    border:`1px solid ${C.border}`,
+    borderRadius:9999, padding:"10px 24px",
     fontSize:13, fontWeight:600, cursor:"pointer",
-    fontFamily:"inherit",
+    fontFamily:"inherit", transition:"all 0.15s",
   };
 
   // Input — SLDS keeps 4px radius for form fields
@@ -661,88 +821,115 @@ export default function HandoffRadar() {
   return (
     <div style={{ background:C.pageBg, minHeight:"100vh", color:C.text, fontFamily:FONT }}>
       <style>{`
-        @keyframes fadeUp{from{transform:translateY(8px)}to{transform:translateY(0)}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         .fu{animation:fadeUp 0.3s ease forwards}
         @keyframes ping{0%{transform:scale(0.3);opacity:0.8}100%{transform:scale(2.4);opacity:0}}
-        input:focus, textarea:focus { outline:none; border-color:${C.brand} !important; box-shadow:0 0 0 3px ${C.brand}33; }
-        button:hover:not(:disabled){ filter:brightness(0.96); }
+        @keyframes gradientShift{0%{background-position:0% 0%}100%{background-position:200% 0%}}
+        input:focus, textarea:focus, select:focus { outline:none; border-color:${C.primary} !important; box-shadow:0 0 0 3px ${C.primary}22; }
+        button:hover:not(:disabled){ filter:brightness(0.93); }
       `}</style>
-
-      {/* ── SLDS App Bar ── */}
+      {/* Animated gradient band — bottom of viewport */}
       <div style={{
-        background:C.brand,
-        height:48,
+        position:"fixed", bottom:0, left:0, right:0, height:4, zIndex:100,
+        background:"linear-gradient(90deg,#7e14ff 0%,#863bff 50%,#47bfff 100%)",
+        backgroundSize:"200% 100%",
+        animation:"gradientShift 8s linear infinite",
+        pointerEvents:"none",
+      }}/>
+
+      {/* Startup modal */}
+      {showStartupModal && (
+        <StartupModal
+          hasExistingKey={!!apiKey}
+          onSave={saveKeyAndModel}
+          onCancel={()=>setShowStartupModal(false)}
+        />
+      )}
+
+      {/* ── Glassmorphic App Bar ── */}
+      <header style={{
+        background:"rgba(255,255,255,0.82)",
+        backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+        borderBottom:`1px solid ${C.border}`,
+        height:56,
         padding:"0 28px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
-        color:"#fff",
         position:"sticky", top:0, zIndex:11,
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <svg width="22" height="22" viewBox="0 0 80 80" style={{ flexShrink:0 }}>
-            <path d="M 41 4 A 36 36 0 1 1 35 4.5" fill="none" stroke="#ffffff" strokeWidth="8" strokeLinecap="round"/>
-            <path d="M 22 41 L 33 52 L 58 28" fill="none" stroke="#c4a8f0" strokeWidth="7.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M 41 4 A 36 36 0 1 1 35 4.5" fill="none" stroke={C.primary} strokeWidth="8" strokeLinecap="round"/>
+            <path d="M 22 41 L 33 52 L 58 28" fill="none" stroke="#863bff" strokeWidth="7.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2 }}>
-            Slalom Handoff<span style={{ color:"#c4a8f0", fontWeight:800 }}>IQ</span>
+          <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2, color:C.text }}>
+            Slalom Handoff<span style={{
+              background:"linear-gradient(135deg,#7e14ff 0%,#47bfff 100%)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+              backgroundClip:"text", fontWeight:800,
+            }}>IQ</span>
           </span>
           <span style={{
-            background:"rgba(255,255,255,0.18)", borderRadius:9999,
-            padding:"2px 10px", fontSize:10, fontWeight:700, letterSpacing:1,
+            background: mode==="agile" ? C.primaryBg : C.accentBg,
+            color: mode==="agile" ? C.primary : C.accent,
+            border: `1px solid ${mode==="agile" ? C.primary : C.accent}44`,
+            borderRadius:9999, padding:"2px 10px",
+            fontSize:10, fontWeight:700, letterSpacing:"0.1em",
             textTransform:"uppercase",
           }}>
             {mode==="agile" ? "Agile mode" : "Gate mode"}
           </span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           {savedAnalyses.length > 0 && (
             <button onClick={()=>setShowHistory(s=>!s)} style={{
-              background: showHistory ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.12)",
-              color:"#fff", border:"1px solid rgba(255,255,255,0.3)",
-              borderRadius:9999, padding:"3px 12px",
+              background: showHistory ? C.primaryBg : "transparent",
+              color: showHistory ? C.primary : C.textMuted,
+              border:`1px solid ${C.border}`,
+              borderRadius:9999, padding:"5px 13px",
               fontSize:11, fontWeight:600, cursor:"pointer",
               display:"flex", alignItems:"center", gap:5,
+              transition:"all 0.15s",
             }}>
               📂 History ({savedAnalyses.length})
             </button>
           )}
           {saveFlash && (
-            <span style={{ fontSize:11, color:"#4ade80", fontWeight:600, animation:"fadeUp 0.3s ease" }}>
-              ✓ Saved
-            </span>
+            <span style={{ fontSize:11, color:C.success, fontWeight:600, animation:"fadeUp 0.3s ease" }}>✓ Saved</span>
           )}
           <Link to="/about" style={{
-            color:"#fff", fontSize:13, fontWeight:600,
-            textDecoration:"none", padding:"5px 16px",
+            color:C.textMuted, fontSize:12, fontWeight:600,
+            textDecoration:"none", padding:"5px 13px",
             borderRadius:9999,
-            background:"rgba(255,255,255,0.15)",
-            border:"1px solid rgba(255,255,255,0.25)",
-            transition:"background 0.15s",
+            border:`1px solid ${C.border}`,
+            transition:"all 0.15s",
             letterSpacing:0.1,
           }}
-            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.28)"}
-            onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.15)"}
+            onMouseEnter={e=>{e.currentTarget.style.color=C.primary;e.currentTarget.style.borderColor=C.primary+"55";}}
+            onMouseLeave={e=>{e.currentTarget.style.color=C.textMuted;e.currentTarget.style.borderColor=C.border;}}
           >About</Link>
           {apiKey
             ? <>
-                <span style={{ fontSize:11, color:"rgba(255,255,255,0.8)", display:"flex", alignItems:"center", gap:5 }}>
-                  <span style={{ color:"#4ade80" }}>●</span> API key set
+                <span style={{ fontSize:11, color:C.textMuted, display:"flex", alignItems:"center", gap:5 }}>
+                  <span style={{ color:C.success, fontSize:8 }}>●</span>
+                  {MODELS.find(m=>m.id===selectedModel)?.label || "Sonnet 4.6"}
                 </span>
-                <button onClick={()=>{setKeyInput("");setShowKeyBanner(s=>!s);}} style={{
-                  background:"rgba(255,255,255,0.15)", color:"#fff",
-                  border:"1px solid rgba(255,255,255,0.3)",
-                  borderRadius:9999, padding:"3px 12px",
+                <button onClick={()=>setShowStartupModal(true)} style={{
+                  background:"transparent", color:C.primary,
+                  border:`1px solid ${C.border}`,
+                  borderRadius:9999, padding:"5px 13px",
                   fontSize:11, fontWeight:600, cursor:"pointer",
-                }}>Change</button>
+                  transition:"all 0.15s",
+                }}>Change key</button>
               </>
-            : <button onClick={()=>setShowKeyBanner(s=>!s)} style={{
-                background:"rgba(255,255,255,0.2)", color:"#fff",
-                border:"1px solid rgba(255,255,255,0.4)",
-                borderRadius:9999, padding:"3px 12px",
+            : <button onClick={()=>setShowStartupModal(true)} style={{
+                background:C.errorBg, color:C.error,
+                border:`1px solid ${C.error}33`,
+                borderRadius:9999, padding:"5px 13px",
                 fontSize:11, fontWeight:600, cursor:"pointer",
               }}>⚠ Set API key</button>
           }
         </div>
-      </div>
+      </header>
 
       {/* History Panel */}
       {showHistory && (
@@ -832,72 +1019,19 @@ export default function HandoffRadar() {
         </>
       )}
 
-      {/* API Key Banner */}
-      {(!apiKey || showKeyBanner) && (
-        <div style={{
-          background: apiKey ? C.surface : C.warningBg,
-          borderBottom:`1px solid ${apiKey ? C.border : C.warning+"44"}`,
-          padding:"14px 28px",
-          display:"flex", alignItems:"center", gap:14, flexWrap:"wrap",
-        }}>
-          <span style={{ fontSize:12, fontWeight:600, color: apiKey ? C.textMuted : C.warning, whiteSpace:"nowrap" }}>
-            {apiKey ? "Update API key" : "⚠  Anthropic API key required"}
-          </span>
-          <div style={{ display:"flex", flex:1, gap:8, alignItems:"center", minWidth:280, maxWidth:520 }}>
-            <div style={{ flex:1, position:"relative" }}>
-              <input
-                type={showKeyValue ? "text" : "password"}
-                value={keyInput}
-                onChange={e=>setKeyInput(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter") saveKey(); }}
-                placeholder="sk-ant-..."
-                style={{
-                  width:"100%", background:C.surface,
-                  border:`1px solid ${C.borderStrong}`, borderRadius:4,
-                  padding:"8px 52px 8px 12px",
-                  color:C.text, fontSize:13, fontFamily:"inherit", boxSizing:"border-box",
-                }}
-              />
-              <button onClick={()=>setShowKeyValue(s=>!s)} style={{
-                position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
-                background:"none", border:"none", color:C.textMuted,
-                cursor:"pointer", fontSize:11, fontWeight:600,
-              }}>{showKeyValue ? "Hide" : "Show"}</button>
-            </div>
-            <button onClick={saveKey} disabled={!keyInput.trim()} style={{
-              background:C.brand, color:"#fff", border:"none",
-              borderRadius:16, padding:"9px 22px",
-              fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
-              opacity:keyInput.trim()?1:0.5, whiteSpace:"nowrap",
-            }}>Save key</button>
-            {apiKey && (
-              <button onClick={()=>setShowKeyBanner(false)} style={{
-                background:C.surface, color:C.brand,
-                border:`1px solid ${C.borderStrong}`,
-                borderRadius:16, padding:"9px 22px",
-                fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
-                whiteSpace:"nowrap",
-              }}>Cancel</button>
-            )}
-          </div>
-          <p style={{ fontSize:11, color:C.textMuted, width:"100%", margin:"4px 0 0" }}>
-            Stored in your browser only — never sent anywhere except the Anthropic API.
-          </p>
-        </div>
-      )}
 
-      {/* ── Object header (sub-bar) ── */}
+      {/* ── Sub-bar ── */}
       <div style={{
         background:C.surface,
         borderBottom:`1px solid ${C.border}`,
-        padding:"14px 28px",
+        padding:"12px 28px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
         <div>
           <div style={{ ...sldsLabel, marginBottom:3 }}>
             {step==="results" ? `${mode==="agile"?"Agile":"Gate"} analysis · ${activeHandoffLabel}` : "Slalom delivery accelerator"}
           </div>
-          <div style={{ fontSize:18, fontWeight:700, color:C.text }}>
+          <div style={{ fontSize:17, fontWeight:700, color:C.text, letterSpacing:"-0.01em" }}>
             {step==="results"
               ? (mode==="agile" ? "Sprint readiness report" : "Delivery readiness report")
               : mode==="agile"
@@ -916,9 +1050,9 @@ export default function HandoffRadar() {
             const done      = i<stepIdx;
             const current   = i===stepIdx;
             const clickable = done;
-            const bg        = done ? C.success : current ? C.brand : C.surface;
+            const bg        = done ? C.success : current ? C.primary : C.surface;
             const fg        = done || current ? "#fff" : C.textMuted;
-            const border    = done ? C.success : current ? C.brand : C.borderStrong;
+            const border    = done ? C.success : current ? C.primary : C.border;
             const steps     = ["setup","upload","results"];
             return (
               <div key={s} onClick={()=>{ if(clickable) setStep(steps[i]); }} style={{
@@ -964,12 +1098,23 @@ export default function HandoffRadar() {
                 {(mode==="agile" ? AGILE_TYPES : WATERFALL_TYPES).map(t=>{
                   const active = handoffType===t.id;
                   return (
-                    <div key={t.id} onClick={()=>setHandoffType(t.id)} style={{
-                      padding:"12px 14px", borderRadius:8, cursor:"pointer",
-                      border: active ? `2px solid ${accentColor}` : `1px solid ${C.border}`,
-                      background: active ? accentBg : C.surface,
-                      transition:"all 0.15s",
-                    }}>
+                    <div key={t.id} onClick={()=>setHandoffType(t.id)}
+                      onMouseEnter={e=>{ if(!active){ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=C.shadowLift; e.currentTarget.style.borderColor=accentColor+"66"; }}}
+                      onMouseLeave={e=>{ if(!active){ e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="none"; e.currentTarget.style.borderColor=C.border; }}}
+                      style={{
+                        padding:"14px", borderRadius:10, cursor:"pointer",
+                        border: active ? `2px solid ${accentColor}` : `1px solid ${C.border}`,
+                        background: active
+                          ? `linear-gradient(180deg, ${accentBg} 0%, ${C.surface} 100%)`
+                          : `linear-gradient(180deg, ${C.surface} 0%, ${C.pageBg} 100%)`,
+                        boxShadow: active ? C.shadow2 : "none",
+                        transition:"all 0.2s",
+                        position:"relative", overflow:"hidden",
+                      }}>
+                      {active && <div style={{
+                        position:"absolute", top:0, left:0, right:0, height:3,
+                        background:accentColor, borderRadius:"10px 10px 0 0",
+                      }}/>}
                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
                         <span style={{ fontSize:16 }}>{t.icon}</span>
                         <span style={{ fontSize:13, fontWeight:600, color:active?accentColor:C.text }}>{t.label}</span>
@@ -1007,32 +1152,35 @@ export default function HandoffRadar() {
             <p style={{ fontSize:13, color:C.textMuted, marginBottom:22, lineHeight:1.6 }}>
               {mode==="agile"
                 ? "Upload your user stories document. Each story will be analysed individually."
-                : "Upload your handoff artifacts. PDF, DOCX, TXT supported."}
+                : "Upload your handoff artifacts. PDF, DOCX, XLSX, CSV, TXT supported."}
             </p>
             <div onClick={()=>fileRef.current?.click()}
               onDragOver={e=>{e.preventDefault();setDragOver(true);}} onDragLeave={()=>setDragOver(false)}
               onDrop={e=>{e.preventDefault();setDragOver(false);handleFiles(e.dataTransfer.files);}}
               style={{
-                ...card, textAlign:"center", padding:"40px 20px", cursor:"pointer",
-                background: dragOver ? C.brandBg : C.surface,
-                border: dragOver ? `2px dashed ${C.brand}` : `1px dashed ${C.borderStrong}`,
-                transition:"all 0.15s", marginBottom:10,
+                ...card, textAlign:"center", padding:"44px 20px", cursor:"pointer",
+                background: dragOver
+                  ? `linear-gradient(180deg, ${C.primaryBg} 0%, ${C.surface} 100%)`
+                  : `linear-gradient(180deg, ${C.surface} 0%, ${C.pageBg} 100%)`,
+                border: dragOver ? `2px dashed ${C.primary}` : `2px dashed ${C.border}`,
+                boxShadow: dragOver ? C.shadow2 : "none",
+                transition:"all 0.2s", marginBottom:10,
               }}>
               <div style={{ fontSize:32, marginBottom:10 }}>📂</div>
-              <p style={{ fontSize:14, color:C.text }}>
-                Drop files here or <span style={{ color:C.brand, fontWeight:600 }}>browse</span>
+              <p style={{ fontSize:14, color:C.text, fontWeight:500 }}>
+                Drop files here or <span style={{ color:C.primary, fontWeight:700 }}>browse</span>
               </p>
-              <p style={{ fontSize:12, color:C.textMuted, marginTop:5 }}>PDF · DOCX · TXT · MD</p>
-              <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt,.md" style={{display:"none"}} onChange={e=>handleFiles(e.target.files)}/>
+              <p style={{ fontSize:12, color:C.textMuted, marginTop:5 }}>PDF · DOCX · XLSX · CSV · TXT · MD</p>
+              <input ref={fileRef} type="file" multiple accept=".pdf,.docx,.txt,.md,.csv,.xlsx" style={{display:"none"}} onChange={e=>handleFiles(e.target.files)}/>
             </div>
 
             <div style={{ textAlign:"center", marginBottom:12 }}>
               <button onClick={()=>setShowPaste(s=>!s)} style={{
-                background: showPaste ? C.surfaceAlt : C.surface,
-                color:C.brand, border:`1px solid ${C.borderStrong}`,
-                borderRadius:16, padding:"8px 20px",
+                background: showPaste ? C.primaryBg : C.surface,
+                color:C.primary, border:`1px solid ${C.border}`,
+                borderRadius:9999, padding:"8px 20px",
                 fontSize:12, fontWeight:600, cursor:"pointer",
-                fontFamily:"inherit",
+                fontFamily:"inherit", transition:"all 0.15s",
               }}>
                 {showPaste ? "▲ Hide text paste" : "📋 Or paste text directly"}
               </button>
@@ -1209,7 +1357,7 @@ export default function HandoffRadar() {
                 )}
 
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", margin:"28px 0 18px" }}>
-                  <Divider step="1" label="Story-by-story analysis" color={C.brand}/>
+                  <Divider step="1" label="Story-by-story analysis" color={C.primary}/>
                   {results.stories?.length > 1 && (
                     <button onClick={()=>{ setExpandAll(s=>!s); setExpandedStory(null); }} style={{
                       background:"none", border:`1px solid ${C.borderStrong}`,
@@ -1314,7 +1462,7 @@ export default function HandoffRadar() {
             {/* ══════════════════ WATERFALL RESULTS ══════════════════ */}
             {mode==="waterfall" && (
               <>
-                <Divider step="1" label="Package check" color={C.brand}/>
+                <Divider step="1" label="Package check" color={C.primary}/>
 
                 {results.package?.present?.length>0 && (
                   <div style={{ ...card, marginBottom:12 }}>
@@ -1349,7 +1497,7 @@ export default function HandoffRadar() {
                   </div>
                 )}
 
-                <Divider step="2" label="Quality dimensions" color={C.brand}/>
+                <Divider step="2" label="Quality dimensions" color={C.primary}/>
                 <div style={{ ...card, marginBottom:4 }}>
                   {QUALITY_DIMS.map(dim=><DimBar key={dim.key} dim={dim} data={results.qualityDimensions?.[dim.key]}/>)}
                 </div>
@@ -1429,7 +1577,7 @@ export default function HandoffRadar() {
 
                 {results.improvementPlan?.salesforceCapabilities?.length>0 && (
                   <div style={{ ...card, marginBottom:12 }}>
-                    <label style={{ ...sldsLabel, color:C.brand, marginBottom:16 }}>☁️  Salesforce capability mapping</label>
+                    <label style={{ ...sldsLabel, color:C.primary, marginBottom:16 }}>☁️  Salesforce capability mapping</label>
                     {results.improvementPlan.salesforceCapabilities.map((c,i)=>{
                       const last = i===results.improvementPlan.salesforceCapabilities.length-1;
                       return (

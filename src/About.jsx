@@ -70,6 +70,14 @@ function Pill({ children, color, bg }) {
 
 const TEAM = [
   {
+    name: "Arpit Garg",
+    role: "Engagement Lead",
+    contribution: "Championed HandoffIQ as a Slalom delivery accelerator — drove the vision, client positioning, and strategic direction that turned an internal idea into a demo-ready product.",
+    initials: "AG",
+    color: C.success,
+    bg: C.successBg,
+  },
+  {
     name: "Kanika Singla",
     role: "Business Architect",
     contribution: "Defined the Definition of Ready framework, prompt content strategy, demo scenarios, and the delivery readiness methodology that powers the analysis.",
@@ -143,13 +151,11 @@ export default function About() {
         color: "#fff",
         position: "sticky", top: 0, zIndex: 11,
       }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <span style={{ fontSize:18 }}>📡</span>
           <span style={{ fontWeight:700, fontSize:14, letterSpacing:0.2 }}>Slalom HandoffIQ</span>
-          <span style={{
-            background:"rgba(255,255,255,0.18)", borderRadius:9999,
-            padding:"2px 10px", fontSize:10, fontWeight:700, letterSpacing:1, textTransform:"uppercase",
-          }}>About</span>
+          <span style={{ color:"rgba(255,255,255,0.35)", fontSize:16, lineHeight:1, marginTop:1 }}>›</span>
+          <span style={{ fontWeight:600, fontSize:15, color:"#fff", letterSpacing:0.1 }}>About</span>
         </div>
         <Link to="/" style={{
           color:"rgba(255,255,255,0.85)", fontSize:12, fontWeight:500,
@@ -293,7 +299,7 @@ export default function About() {
           {/* Team */}
           <Card>
             <SectionHeading icon="👥">Team</SectionHeading>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(340px, 1fr))", gap:16 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:16 }}>
               {TEAM.map(member => (
                 <div key={member.name} style={{
                   background:C.surfaceAlt,

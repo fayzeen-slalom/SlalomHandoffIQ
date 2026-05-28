@@ -1,0 +1,14 @@
+interface:
+  display_name: Risk Gate Assessor
+  short_description: Assess project documents against an 11-element risk gate checklist.
+  icon: 🛡️
+  accent_color: '#3B82F6'
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

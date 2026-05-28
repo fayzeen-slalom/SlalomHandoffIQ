@@ -571,6 +571,12 @@ const WATERFALL_PROMPT = `You are a delivery accelerator for IT and Salesforce i
 
 Rules: package.present max 3; incomplete+missing max 3 each with examples; improvedStories max 2 full rewrites; missingNFRs max 3 with usable statements; sfCapabilities max 3. Be specific to the artifact.`;
 
+function buildWaterfallPrompt(handoffType) {
+  const skill = getSkillForContext("waterfall", handoffType);
+  if (!skill) return WATERFALL_PROMPT;
+  return `${skill.md}\n\n---\n\n${WATERFALL_PROMPT}\n\nApply the skill's evaluation framework above as your evaluation lens — surface risk-gate gaps in the JSON's package.missing and improvementPlan.missingNFRs arrays. The JSON output shape MUST remain exactly as specified.`;
+}
+
 function buildAgilePrompt(handoffType) {
   const skill = getSkillForContext("agile", handoffType);
   const skillBlock = skill?.md || "";
@@ -733,7 +739,7 @@ export default function HandoffRadar() {
         },
         body:JSON.stringify({
           model:selectedModel, max_tokens:64000,
-          system: mode==="agile" ? buildAgilePrompt(handoffType) : WATERFALL_PROMPT,
+          system: mode==="agile" ? buildAgilePrompt(handoffType) : buildWaterfallPrompt(handoffType),
           messages:[{role:"user",content:`Handoff type: ${typeLabel}${agileContext}\n\nArtifacts:\n${combined}`}],
         }),
       });

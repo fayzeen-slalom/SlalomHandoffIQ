@@ -2,6 +2,8 @@
 // so updating a skill folder requires a rebuild (npm run dev / npm run build).
 import readinessMd from "./user-story-readiness-evaluator/SKILL.md?raw";
 import integrationMd from "./integration-user-story-readiness/SKILL.md?raw";
+import riskGateMd from "./risk-gate-assessor/SKILL.md?raw";
+import riskGateChecklist from "./risk-gate-assessor/references/risk_gate_checklist.md?raw";
 
 export const SKILLS = {
   "user-story-readiness-evaluator": {
@@ -20,6 +22,13 @@ export const SKILLS = {
       { key:"securityDataNfrs",   label:"Security, data, and NFRs",         desc:"Permissions, sharing, performance, compliance, audit" },
       { key:"testingScenarios",   label:"Testing notes",                    desc:"Happy path and exception scenarios" },
     ],
+  },
+  "risk-gate-assessor": {
+    id: "risk-gate-assessor",
+    name: "Risk Gate Assessor",
+    author: "Kanika Singla",
+    appliesTo: { mode: "waterfall", handoffTypes: ["client-impl"] },
+    md: `${riskGateMd}\n\n## Reference: Risk Gate Checklist\n\n${riskGateChecklist}`,
   },
   "integration-user-story-readiness": {
     id: "integration-user-story-readiness",

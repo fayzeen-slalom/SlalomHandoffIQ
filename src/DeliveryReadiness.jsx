@@ -632,9 +632,19 @@ export default function HandoffRadar() {
   });
   const [showHistory, setShowHistory]     = useState(false);
   const [saveFlash, setSaveFlash]         = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState(null);
+  const [editingName, setEditingName]       = useState("");
 
   const activeSkill = mode === "agile" ? getSkillForContext("agile", handoffType) : null;
   const dorCriteria = activeSkill?.criteria || DOR_CRITERIA;
+
+  const renameSavedAnalysis = (id, name) => {
+    setSavedAnalyses(prev => {
+      const updated = prev.map(a => a.id === id ? { ...a, name } : a);
+      localStorage.setItem("handoffiq_saved_analyses", JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   useEffect(() => { loadPdfJs().catch(()=>{}); }, []);
   useEffect(() => { if (step === "results") window.scrollTo({ top: 0, behavior: "smooth" }); }, [step]);
@@ -970,12 +980,20 @@ export default function HandoffRadar() {
               const label = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}`;
               const scoreColor = entry.score >= 70 ? C.success : entry.score >= 40 ? C.warning : C.error;
               const scoreBg   = entry.score >= 70 ? C.successBg : entry.score >= 40 ? C.warningBg : C.errorBg;
+              const isEditing = editingEntryId === entry.id;
+              const primaryName = entry.name || entry.handoffLabel;
+              const commitRename = () => {
+                const trimmed = editingName.trim();
+                renameSavedAnalysis(entry.id, trimmed || undefined);
+                setEditingEntryId(null);
+              };
               return (
                 <div key={entry.id} style={{
                   margin:"4px 12px", borderRadius:8,
                   border:`1px solid ${C.border}`, overflow:"hidden",
                 }}>
                   <button onClick={()=>{
+                    if (isEditing) return;
                     setMode(entry.mode);
                     setHandoffType(entry.handoffType);
                     setResults(entry.results);
@@ -983,33 +1001,76 @@ export default function HandoffRadar() {
                     setShowHistory(false);
                   }} style={{
                     width:"100%", background:C.surfaceAlt, border:"none",
-                    padding:"12px 14px", cursor:"pointer", textAlign:"left",
+                    padding:"12px 14px", cursor: isEditing ? "default" : "pointer", textAlign:"left",
                     display:"flex", flexDirection:"column", gap:5,
                   }}>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                      <span style={{ fontSize:12, fontWeight:600, color:C.text }}>{entry.handoffLabel}</span>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+                      <span style={{ fontSize:12, fontWeight:600, color:C.text, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{primaryName}</span>
                       <span style={{
                         background:scoreBg, color:scoreColor,
                         borderRadius:9999, padding:"1px 8px", fontSize:11, fontWeight:700,
+                        flexShrink:0,
                       }}>{entry.score}</span>
                     </div>
                     <div style={{ fontSize:11, color:C.textMuted }}>
-                      {entry.mode === "agile" ? "Agile" : "Gate"} · {entry.fileNames.join(", ")}
+                      {entry.mode === "agile" ? "Agile" : "Gate"} · {entry.handoffLabel}
                     </div>
+                    <div style={{ fontSize:10, color:C.textSubtle, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.fileNames.join(", ")}</div>
                     <div style={{ fontSize:10, color:C.textSubtle }}>{label}</div>
                   </button>
-                  <button onClick={()=>{
-                    setSavedAnalyses(prev => {
-                      const updated = prev.filter(a=>a.id!==entry.id);
-                      localStorage.setItem("handoffiq_saved_analyses", JSON.stringify(updated));
-                      return updated;
-                    });
-                  }} style={{
-                    width:"100%", background:"none", border:"none",
-                    borderTop:`1px solid ${C.border}`,
-                    padding:"6px", fontSize:11, color:C.textSubtle,
-                    cursor:"pointer",
-                  }}>Remove</button>
+                  {isEditing ? (
+                    <div style={{ borderTop:`1px solid ${C.border}`, padding:"8px", display:"flex", flexDirection:"column", gap:6 }}>
+                      <input
+                        autoFocus
+                        value={editingName}
+                        onChange={e=>setEditingName(e.target.value)}
+                        onKeyDown={e=>{
+                          if (e.key === "Enter") commitRename();
+                          else if (e.key === "Escape") setEditingEntryId(null);
+                        }}
+                        placeholder="Name this analysis"
+                        style={{
+                          width:"100%", fontSize:12, padding:"6px 8px",
+                          border:`1px solid ${C.borderStrong}`, borderRadius:6,
+                          fontFamily:"inherit", color:C.text, background:"#fff",
+                          boxSizing:"border-box",
+                        }}
+                      />
+                      <div style={{ display:"flex", gap:6 }}>
+                        <button onClick={commitRename} style={{
+                          flex:1, background:C.primary, color:"#fff", border:"none",
+                          borderRadius:6, padding:"5px", fontSize:11, fontWeight:600, cursor:"pointer",
+                        }}>Save</button>
+                        <button onClick={()=>setEditingEntryId(null)} style={{
+                          flex:1, background:"none", color:C.textMuted, border:`1px solid ${C.border}`,
+                          borderRadius:6, padding:"5px", fontSize:11, fontWeight:600, cursor:"pointer",
+                        }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display:"flex", borderTop:`1px solid ${C.border}` }}>
+                      <button onClick={()=>{
+                        setEditingEntryId(entry.id);
+                        setEditingName(entry.name || "");
+                      }} style={{
+                        flex:1, background:"none", border:"none",
+                        borderRight:`1px solid ${C.border}`,
+                        padding:"6px", fontSize:11, color:C.textSubtle,
+                        cursor:"pointer",
+                      }}>✎ Rename</button>
+                      <button onClick={()=>{
+                        setSavedAnalyses(prev => {
+                          const updated = prev.filter(a=>a.id!==entry.id);
+                          localStorage.setItem("handoffiq_saved_analyses", JSON.stringify(updated));
+                          return updated;
+                        });
+                      }} style={{
+                        flex:1, background:"none", border:"none",
+                        padding:"6px", fontSize:11, color:C.textSubtle,
+                        cursor:"pointer",
+                      }}>Remove</button>
+                    </div>
+                  )}
                 </div>
               );
             })}
